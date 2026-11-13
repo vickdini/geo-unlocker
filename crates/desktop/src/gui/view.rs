@@ -409,7 +409,19 @@ fn cloud_panel(app: &App) -> El<'_> {
             card = card
                 .push(row![t("1. Open "), button(text(url.trim_start_matches("https://").to_string()).size(14).color(style::ACCENT2)).padding(0).style(style::btn(Btn::Icon)).on_press(Message::OpenLink(url.clone())), t(" and sign in")].align_y(Alignment::Center))
                 .push(t("2. Enter this code when asked:"))
-                .push(text(s(l, "device_code")).size(26).font(BOLD))
+                .push({
+                    let code = s(l, "device_code");
+                    let just_copied = app.copied.as_ref().is_some_and(|(c, at)| *c == code && at.elapsed().as_secs() < 3);
+                    row![
+                        text(code.clone()).size(26).font(BOLD),
+                        space::horizontal(),
+                        button(t(if just_copied { "✔ Copied" } else { "Copy" }).font(SEMIBOLD))
+                            .padding([7, 14])
+                            .style(style::btn(if just_copied { Btn::Ghost } else { Btn::Primary }))
+                            .on_press(Message::Copy(code)),
+                    ]
+                    .align_y(Alignment::Center)
+                })
                 .push(muted("Waiting for you to finish signing in…"));
         }
         return col.push(container(card).padding(14).style(style::panel(CARD, 12.0, Some(LINE)))).into();

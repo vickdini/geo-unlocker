@@ -153,6 +153,8 @@ pub struct App {
     pub volume: Option<(u64, u64)>,
     pub samples: VecDeque<(f32, f32)>,
     restart_requested: bool,
+    /// What was copied last and when (for the "Copied" confirmation).
+    pub copied: Option<(String, Instant)>,
 }
 
 #[derive(Debug, Clone)]
@@ -197,6 +199,8 @@ pub enum Message {
     UpdCheck,
     UpdAuto(bool),
     OpenLink(String),
+    /// Copy text to the clipboard (e.g. the Azure sign-in code).
+    Copy(String),
     DismissToast,
     CloseRequested,
     Exit,
@@ -276,6 +280,7 @@ impl App {
             volume: None,
             samples: VecDeque::new(),
             restart_requested: false,
+            copied: None,
         }
     }
 
@@ -713,6 +718,10 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
         Message::UpdCheck => return app.call("POST", "/update/check", json!({}), |_| Message::Tick),
         Message::UpdAuto(on) => return app.call("POST", "/update/auto", json!({ "enabled": on }), |_| Message::Tick),
         Message::OpenLink(url) => open_external(&url),
+        Message::Copy(text) => {
+            app.copied = Some((text.clone(), Instant::now()));
+            return iced::clipboard::write(text);
+        }
         Message::DismissToast => {
             app.flash = None;
             app.dismissed_job = Some(format!("{}|{}", app.status["job"]["title"], app.status["job"]["error"]));
