@@ -8,9 +8,10 @@ pub mod systun;
 pub mod tor;
 pub mod vpn;
 pub mod updater;
-pub mod web;
+pub mod gui;
+pub mod service;
 pub mod wgtun;
-pub mod app;
+pub mod api;
 pub mod backend;
 
 /// Show a fatal error: a message box on Windows (no console there), stderr elsewhere.

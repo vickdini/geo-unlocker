@@ -22,9 +22,9 @@ boringtun = { version = "0.7", default-features = false }
 tun2proxy = { version = "0.8.7", default-features = false }
 tun = { version = "0.8.14", features = ["async"] }
 tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "io-util", "macros", "sync"] }
-# Native app window using the system web engine (WebView2 / WKWebView / WebKitGTK).
-wry = "0.57"
-tao = "0.37"
+# Native app window (pure Rust GUI) and native file dialog.
+iced = { version = "0.14", features = ["canvas", "svg", "tokio"] }
+rfd = "0.18"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
@@ -43,7 +43,7 @@ maintainer = "Geo Unlocker"
 section = "net"
 priority = "optional"
 extended-description = "Route this computer through Tor, a built-in WireGuard VPN or your own Azure VPN server, and manage the Geo Unlocker Raspberry Pi."
-depends = "$auto, tor, tor-geoipdb, libwebkit2gtk-4.1-0, libgtk-3-0, iptables, iproute2, pkexec | policykit-1"
+depends = "$auto, tor, tor-geoipdb, iptables, iproute2, pkexec | policykit-1, libxkbcommon0, libxkbcommon-x11-0, libwayland-client0, libx11-6, libxcursor1, libxi6, libxrandr2"
 assets = [
   ["target/release/geo-unlocker", "usr/bin/", "755"],
   ["../../packaging/linux/geo-unlocker.desktop", "usr/share/applications/", "644"],

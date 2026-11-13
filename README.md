@@ -82,7 +82,7 @@ HTTP API (basic auth with the Pi password), also used by the desktop app:
 |---|---|---|
 | Windows 10/11 | `GeoUnlockerSetup-<version>-x64.exe` | Start menu + optional desktop shortcut; uninstall from Settings › Apps |
 | macOS 11+ | `GeoUnlocker-<version>-macos-arm64.dmg` / `-x64.dmg` | Drag to Applications. Not notarized yet: right-click › Open the first time |
-| Linux (Debian/Ubuntu) | `geo-unlocker_<version>_amd64.deb` | `sudo apt install ./geo-unlocker_*.deb` pulls in Tor, WebKitGTK, iptables automatically |
+| Linux (Debian/Ubuntu) | `geo-unlocker_<version>_amd64.deb` | `sudo apt install ./geo-unlocker_*.deb` pulls in Tor, iptables etc. automatically |
 
 Everything the features need is included:
 
@@ -90,12 +90,12 @@ Everything the features need is included:
   the app's own virtual network adapter (Windows: WireGuard's signed Wintun driver, embedded).
 * **Tor**: the official Tor Expert Bundle ships with the app (Linux: the distro's `tor` package).
 * **Azure** is driven through its web APIs; sign-in is Microsoft's standard device code. No `az` CLI.
-* Windows: the C runtime is linked in; WebView2 is part of Windows 10/11 (the installer adds it on
-  the rare PC that lacks it).
+* The window is fully native (Rust + [iced](https://iced.rs), drawn on the GPU); no web engine.
+  Windows: the C runtime is linked in.
 
 ### Use
 
-The app opens a ProtonVPN-style window: a connection card with **Quick connect / Disconnect**,
+The app opens a native, ProtonVPN-style window: a connection card with **Quick connect / Disconnect**,
 Tor / VPN / Cloud lists with search, a world map showing your location and exit, and a live
 session-traffic chart. The **Raspberry Pi** button (top right) links the Pi.
 
@@ -128,10 +128,42 @@ Cloud costs: the B1s VM is free for 12 months on new Azure accounts, then ≈ US
 
 ---
 
+## Automatic updates
+
+Both apps update themselves from this repository's **GitHub Releases**:
+
+* **Desktop**: checks 20 s after start and every 6 hours. A newer release is downloaded and
+  verified, then installed silently **as soon as you're disconnected** (it never interrupts a
+  VPN/Tor connection), and the app restarts. *About & updates* (top bar) shows the version, has
+  **Check now / Install now**, and an **Install updates automatically** switch.
+* **Pi**: checks a minute after start and every 12 hours, replaces its binary and restarts the
+  service (the active profile reconnects within seconds). Toggle under *Updates* on the Pi page or
+  `"auto_update": false` in `/etc/geo-unlocker/config.json`.
+
+Updates are **signed**: each release has `SHA256SUMS.txt` plus `SHA256SUMS.txt.sig`, an Ed25519
+signature made in CI. The apps embed the public key (`packaging/update-public-key.txt`) and only
+install a file whose checksum is in a correctly signed list. A tampered or corrupted download is
+refused.
+
+### Publishing a release
+
+1. One-time: add the repository secret **`UPDATE_SIGNING_KEY`** (Settings → Secrets and variables
+   → Actions) with the contents of your private key file. Keep a backup of that file somewhere
+   safe; without it you can't ship updates to existing installs.
+2. Tag and push: `git tag v0.3.0 && git push origin v0.3.0`.
+3. The workflow builds every installer and Pi bundle with that version and the repository name
+   built in, signs the checksum list, verifies it like the apps will, and publishes the release.
+   Installed apps pick it up automatically.
+
+Local builds (without the release pipeline) don't auto-update. To rotate keys:
+`cargo run -p update-sign -- keygen <new-private-key-file>` and put the printed public key in
+`packaging/update-public-key.txt` (apps built before the change keep trusting the old key).
+
 ## Building
 
 ```bash
 cargo test --workspace --lib
+cargo run -p geo-unlocker --example preview   # the window with sample data (no admin, no network changes)
 cargo build --release -p geo-unlocker                                           # desktop app
 cross build --release -p geo-unlocker-pi --target aarch64-unknown-linux-musl   # Pi (64-bit)
 ```
