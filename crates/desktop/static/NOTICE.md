@@ -1,7 +1,8 @@
-# Third-party assets
+# Third-party components
 
-- `flags.woff2` — "Twemoji Country Flags" from country-flag-emoji-polyfill 0.1.8 (MIT, © Talk.js).
-  Flag artwork from Twemoji, © Twitter, Inc. and other contributors, licensed under CC-BY 4.0
-  (https://creativecommons.org/licenses/by/4.0/).
-- `map.js` — generated from Natural Earth 1:110m Admin 0 Countries (public domain, naturalearthdata.com).
-- `../assets/wintun/` — Wintun 0.14.1 by WireGuard LLC, see its LICENSE.txt.
+- **Tor** (Tor Expert Bundle) — © The Tor Project, BSD-3-Clause; see the `tor/docs` folder.
+- **Wintun** 0.14.1 — © WireGuard LLC, prebuilt-binaries license; see `wintun-LICENSE.txt`.
+- **boringtun** (WireGuard) — © Cloudflare, BSD-3-Clause.
+- **tun2proxy**, **iced**, **rfd** — MIT.
+- **flag-icons** 7.6.0 — © Panayiotis Lipiridis, MIT (`assets/flags/LICENSE` in the source).
+- **World map** — generated from Natural Earth 1:110m Admin 0 Countries (public domain).

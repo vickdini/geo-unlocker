@@ -42,15 +42,12 @@ Source: "{#Root}\target\release\geo-unlocker.exe"; DestDir: "{app}"; Flags: igno
 Source: "{#Root}\dist\windows\tor\*"; DestDir: "{app}\tor"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#Root}\crates\desktop\static\NOTICE.md"; DestDir: "{app}\licenses"; Flags: ignoreversion
 Source: "{#Root}\crates\desktop\assets\wintun\LICENSE.txt"; DestDir: "{app}\licenses"; DestName: "wintun-LICENSE.txt"; Flags: ignoreversion
-; Only used on the rare Windows 10 PCs without the WebView2 runtime (Windows 11 always has it).
-Source: "{#Root}\dist\windows\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall skipifsourcedoesntexist; Check: NeedsWebView2
 
 [Icons]
 Name: "{autoprograms}\Geo Unlocker"; Filename: "{app}\geo-unlocker.exe"
 Name: "{autodesktop}\Geo Unlocker"; Filename: "{app}\geo-unlocker.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft Edge WebView2..."; Flags: waituntilterminated skipifdoesntexist; Check: NeedsWebView2
 Filename: "{app}\geo-unlocker.exe"; Description: "Start Geo Unlocker"; Flags: nowait postinstall skipifsilent shellexec
 ; Automatic updates run the installer silently with /relaunch=1: start the new version afterwards.
 Filename: "{app}\geo-unlocker.exe"; Flags: nowait shellexec; Check: ShouldRelaunch
@@ -61,23 +58,11 @@ Filename: "{app}\geo-unlocker.exe"; Parameters: "--cleanup"; Flags: runhidden wa
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{commonappdata}\GeoUnlocker"
+; The app window's preferences (selected tab, home location).
+Type: filesandordirs; Name: "{localappdata}\GeoUnlocker"
 
 [Code]
-function WebView2Version(Root: Integer; Key: String): String;
-begin
-  if not RegQueryStringValue(Root, Key, 'pv', Result) then Result := '';
-end;
-
 function ShouldRelaunch(): Boolean;
 begin
   Result := ExpandConstant('{param:relaunch|0}') = '1';
-end;
-
-function NeedsWebView2(): Boolean;
-var v: String;
-begin
-  v := WebView2Version(HKLM, 'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}');
-  if (v = '') or (v = '0.0.0.0') then
-    v := WebView2Version(HKCU, 'Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}');
-  Result := (v = '') or (v = '0.0.0.0');
 end;

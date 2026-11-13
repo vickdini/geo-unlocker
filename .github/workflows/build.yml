@@ -25,8 +25,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - name: Linux GUI libraries (WebKitGTK for the app window)
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev
       - run: cargo test --workspace --lib
       - run: cargo clippy --workspace --all-targets -- -D warnings
 
@@ -41,9 +39,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Tor Expert Bundle
         run: python packaging/fetch_tor.py windows-x86_64 dist/windows/tor
-      - name: WebView2 bootstrapper (only used on PCs without WebView2)
-        shell: pwsh
-        run: Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile dist/windows/MicrosoftEdgeWebview2Setup.exe
       - run: cargo build --release -p geo-unlocker
       - name: Installer
         shell: pwsh
@@ -87,8 +82,6 @@ jobs:
         shell: bash
         run: echo "GEO_VERSION=${VERSION#v}" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@stable
-      - name: Linux GUI libraries (WebKitGTK for the app window)
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev
       - run: cargo install cargo-deb --locked
       - run: cargo deb -p geo-unlocker --deb-version "${VERSION#v}" -o dist/
       - uses: actions/upload-artifact@v4
