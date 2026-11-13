@@ -54,8 +54,3 @@ pub fn spawn_detached(cmd: Vec<String>) {
             .spawn();
     }
 }
-
-pub fn chmod_private(p: &std::path::Path) {
-    use std::os::unix::fs::PermissionsExt;
-    let _ = std::fs::set_permissions(p, std::fs::Permissions::from_mode(0o600));
-}
