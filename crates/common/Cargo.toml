@@ -1,0 +1,15 @@
+[package]
+name = "geo-common"
+description = "Shared code for the Geo Unlocker Pi and desktop apps"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tiny_http.workspace = true
+ed25519-dalek.workspace = true
+sha2.workspace = true

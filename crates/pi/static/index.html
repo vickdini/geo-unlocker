@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Geo Unlocker Pi</title>
+<style>
+:root {
+  --bg: #f4f5f7; --card: #ffffff; --text: #1b1f24; --muted: #5f6b7a; --line: #dde1e6;
+  --accent: #2f6fed; --accent-text: #ffffff; --ok: #1f9d55; --warn: #b7791f; --bad: #d64545; --chip: #eef1f5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111418; --card: #1a1f25; --text: #e8ebef; --muted: #9aa5b1; --line: #2b323a;
+    --accent: #5b8cff; --accent-text: #0b0d10; --ok: #3ccf7e; --warn: #e0a840; --bad: #f07070; --chip: #232a32;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 640px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 1.35rem; margin: 4px 0 14px; }
+h2 { font-size: 1.05rem; margin: 0 0 10px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+.status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.on { background: var(--ok); } .dot.wait { background: var(--warn); }
+.status .text { flex: 1; min-width: 180px; } .big { font-weight: 600; font-size: 1.1rem; }
+.muted { color: var(--muted); font-size: .9rem; }
+button.btn { font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 10px 16px; background: var(--accent); color: var(--accent-text); cursor: pointer; }
+button.btn.secondary { background: var(--chip); color: var(--text); }
+button.btn:disabled { opacity: .5; cursor: default; }
+input[type=text], input[type=password] { width: 100%; font: inherit; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+input[type=file] { max-width: 100%; }
+label { display: block; font-size: .9rem; color: var(--muted); margin: 10px 0 4px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: end; }
+.row > .grow { flex: 1; min-width: 130px; }
+.list { list-style: none; padding: 0; margin: 0; }
+.list li { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.list li:last-child { border-bottom: 0; } .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.chip { font-size: .75rem; background: var(--chip); padding: 2px 8px; border-radius: 99px; color: var(--muted); }
+.active { color: var(--ok); font-weight: 600; font-size: .85rem; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .82rem; margin: 10px 0 0; background: var(--chip); padding: 10px; border-radius: 10px; }
+.note { background: var(--chip); border-radius: 10px; padding: 10px 12px; font-size: .88rem; margin-top: 12px; }
+.err { color: var(--bad); } [hidden] { display: none !important; }
+code { overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🌍 Geo Unlocker · Pi</h1>
+  <section class="card">
+    <div class="status">
+      <span class="dot" id="dot"></span>
+      <div class="text"><div class="big" id="title">Loading…</div><div class="muted" id="sub"></div></div>
+      <button class="btn secondary" id="offBtn" data-busy="1" hidden>Turn off</button>
+    </div>
+    <pre id="job" hidden></pre>
+  </section>
+
+  <section class="card">
+    <h2>Devices routed through the VPN</h2>
+    <ul class="list" id="devices"></ul>
+    <p class="muted" id="noDevices">No devices yet. Add the IP address of your TV, monitor or streaming stick.</p>
+    <form id="devForm" class="row">
+      <div class="grow"><label for="dName">Name</label><input type="text" id="dName" placeholder="Living-room TV" maxlength="40"></div>
+      <div class="grow"><label for="dIp">IP address</label><input type="text" id="dIp" placeholder="192.168.1.50" required inputmode="decimal"></div>
+      <button class="btn" type="submit">Add</button>
+    </form>
+    <div class="note">On each device, set the network to <b>manual</b>: Gateway = <b id="piIp">the Pi</b>, DNS = the Pi,
+      and give it the fixed IP listed here. Turn IPv6 off on the device so nothing bypasses the Pi.</div>
+  </section>
+
+  <section class="card">
+    <h2>VPN profiles</h2>
+    <ul class="list" id="profiles"></ul>
+    <p class="muted" id="empty">No profiles yet. Upload a WireGuard <code>.conf</code> or OpenVPN <code>.ovpn</code>,
+      or send one from the Geo Unlocker desktop app.</p>
+    <details>
+      <summary style="cursor:pointer;font-weight:600;margin-top:8px">Add a profile</summary>
+      <form id="form">
+        <label for="f">Config file</label><input type="file" id="f" accept=".conf,.ovpn,text/plain" required>
+        <label for="n">Name</label><input type="text" id="n" placeholder="e.g. US-NewYork">
+        <label for="u">Username (OpenVPN, if required)</label><input type="text" id="u" autocomplete="off">
+        <label for="p">Password</label><input type="password" id="p" autocomplete="off">
+        <div class="row"><button class="btn" type="submit">Save profile</button></div>
+      </form>
+    </details>
+  </section>
+  <section class="card">
+    <h2>Updates</h2>
+    <div id="upd" class="muted">…</div>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:10px;color:var(--text)"><input type="checkbox" id="updAuto"> Install updates automatically</label>
+    <div class="row"><button class="btn secondary" id="updCheck">Check now</button></div>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+async function api(path, opts = {}) {
+  const init = { method: opts.method || (opts.body !== undefined ? "POST" : "GET"), headers: {} };
+  if (opts.body !== undefined) { init.body = JSON.stringify(opts.body); init.headers["Content-Type"] = "application/json"; }
+  const r = await fetch(path, init), data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+const act = fn => async (...a) => { try { await fn(...a); } catch (e) { alert(e.message); } refresh(); };
+let busy = false, active = null, devices = [], lastProfiles = "", lastDevices = "";
+
+async function refresh() {
+  let s; try { s = await api("/api/status"); } catch { $("#title").textContent = "Can't reach the Pi"; return; }
+  active = s.active; devices = s.devices; const t = s.tunnel;
+  const n = devices.length, who = n === 1 ? "1 device" : `${n} devices`;
+  let state = "", sub = `${who} on your normal internet`;
+  $("#title").textContent = active ? `${who} → ${active}` : "Off";
+  if (active) {
+    if (t.kind === "wireguard") {
+      const ok = t.handshake_age != null && t.handshake_age < 180;
+      sub = ok ? `Connected · ↓ ${(t.rx / 1e6).toFixed(1)} MB ↑ ${(t.tx / 1e6).toFixed(1)} MB` : "Waiting for the server…"; state = ok ? "on" : "wait";
+    } else if (t.kind === "openvpn") { sub = t.alive ? "Connected" : "OpenVPN stopped"; state = t.alive ? "on" : "wait"; }
+    else { sub = "Connecting…"; state = "wait"; }
+  }
+  $("#sub").textContent = sub; $("#dot").className = "dot " + state; $("#offBtn").hidden = !active;
+  $("#piIp").textContent = s.pi_ip;
+  const j = s.job; busy = !!(j && j.running);
+  $("#job").hidden = !(j && (j.running || j.error));
+  if (j) $("#job").innerHTML = `<b>${esc(j.title)}${j.running ? "…" : ""}</b>\n` + j.lines.map(esc).join("\n") + (j.error ? `\n<span class="err">✖ ${esc(j.error)}</span>` : "");
+  renderDevices(); await loadProfiles();
+  const u = s.update || {};
+  $("#upd").innerHTML = `Version <b>${esc(u.current)}</b>` + (!u.enabled ? " · this build doesn't update itself"
+    : u.state === "checking" ? " · checking…" : u.state === "installing" ? ` · installing ${esc(u.latest)}… (the Pi app restarts)`
+    : u.state === "error" ? ` · <span class="err">${esc(u.error)}</span>` : u.latest ? ` · latest ${esc(u.latest)}` : "");
+  if (document.activeElement !== $("#updAuto")) $("#updAuto").checked = !!s.auto_update;
+  $("#updAuto").disabled = !u.enabled; $("#updCheck").disabled = !u.enabled || u.state === "checking" || u.state === "installing";
+  document.querySelectorAll("button[data-busy]").forEach(b => b.disabled = busy);
+}
+function renderDevices() {
+  $("#noDevices").hidden = devices.length > 0;
+  const html = devices.map((d, i) => `<li><div class="grow"><b>${esc(d.name || "Device")}</b> <span class="chip">${esc(d.ip)}</span></div>
+    <button class="btn secondary" data-rm="${i}" aria-label="Remove ${esc(d.ip)}">✕</button></li>`).join("");
+  if (html !== lastDevices) $("#devices").innerHTML = lastDevices = html;
+}
+async function loadProfiles() {
+  const list = await api("/api/vpn/profiles");
+  $("#empty").hidden = list.length > 0;
+  const html = list.map(p => `<li><div class="grow"><b>${esc(p.name)}</b> <span class="chip">${p.type}</span>
+    ${p.name === active ? '<span class="active">● active</span>' : ""}</div>
+    <button class="btn" data-busy="1" data-connect="${esc(p.name)}">Connect</button>
+    <button class="btn secondary" data-del="${esc(p.name)}" aria-label="Delete ${esc(p.name)}">✕</button></li>`).join("");
+  if (html !== lastProfiles) $("#profiles").innerHTML = lastProfiles = html;
+}
+const saveDevices = list => api("/api/devices", { method: "PUT", body: list });
+$("#devForm").onsubmit = act(async e => {
+  e.preventDefault();
+  await saveDevices([...devices, { name: $("#dName").value, ip: $("#dIp").value }]);
+  e.target.reset();
+});
+$("#devices").onclick = act(async e => {
+  const i = e.target.dataset.rm;
+  if (i !== undefined && confirm(`Stop routing ${devices[i].ip} through the VPN?`)) await saveDevices(devices.filter((_, k) => k != i));
+});
+$("#offBtn").onclick = act(() => api("/api/off", { body: {} }));
+$("#profiles").onclick = act(async e => {
+  const c = e.target.dataset.connect, d = e.target.dataset.del;
+  if (c) await api("/api/vpn/connect", { body: { name: c } });
+  if (d && confirm(`Delete profile "${d}"?`)) await api(`/api/vpn/profiles/${encodeURIComponent(d)}`, { method: "DELETE" });
+});
+$("#form").onsubmit = act(async e => {
+  e.preventDefault();
+  const f = $("#f").files[0];
+  await api("/api/vpn/profiles", { body: { name: $("#n").value.trim() || f.name.replace(/\.[^.]+$/, ""), text: await f.text(), username: $("#u").value, password: $("#p").value } });
+  e.target.reset();
+});
+$("#updCheck").onclick = act(() => api("/api/update/check", { body: {} }));
+$("#updAuto").onchange = act(() => api("/api/update/auto", { body: { enabled: $("#updAuto").checked } }));
+refresh(); setInterval(refresh, 3000);
+</script>
+</body>
+</html>

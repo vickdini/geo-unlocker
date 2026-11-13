@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Geo Unlocker</title>
+<script src="map.js"></script>
+<style>
+@font-face { font-family: "Flags"; src: url("flags.woff2") format("woff2"); unicode-range: U+1F1E6-1F1FF, U+1F3F4, U+E0062-E007F; }
+:root {
+  --bg: #16171b; --side: #1d1e23; --card: #24252b; --raise: #2c2d34; --line: #33343c;
+  --text: #ececf1; --muted: #9b9caa; --faint: #6c6d7a;
+  --accent: #7a5cff; --accent-2: #9b85ff; --accent-ink: #ffffff;
+  --ok: #2fd08f; --warn: #f5b13d; --bad: #f2546f;
+  --land: #2a2b33; --land-line: #16171b; --marker: #5d5e6c;
+  --font: "Flags", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.45 var(--font); overflow: hidden; user-select: none; }
+button { font: inherit; color: inherit; }
+input, select { font: inherit; }
+[hidden] { display: none !important; }
+.app { display: grid; grid-template-columns: 372px 1fr; grid-template-rows: 48px 1fr; height: 100vh; }
+
+/* ---------- top bar ---------- */
+.topbar { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 0 14px; background: var(--side); border-bottom: 1px solid var(--line); }
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .2px; }
+.logo svg { width: 24px; height: 24px; }
+.spacer { flex: 1; }
+.chip-btn { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.chip-btn:hover { background: var(--raise); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
+.dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+.icon-btn { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; border: 0; background: transparent; cursor: pointer; color: var(--muted); }
+.icon-btn:hover { background: var(--raise); color: var(--text); }
+.icon-btn svg { width: 18px; height: 18px; }
+
+/* ---------- sidebar ---------- */
+.side { background: var(--side); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.conn { position: relative; padding: 18px 18px 16px; overflow: hidden; border-bottom: 1px solid var(--line); }
+.conn::before { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(242,84,111,.20), transparent 70%); transition: background .4s; }
+.conn.on::before { background: linear-gradient(135deg, rgba(122,92,255,.35), rgba(47,208,143,.08) 80%); }
+.conn.wait::before { background: linear-gradient(135deg, rgba(245,177,61,.22), transparent 70%); }
+.conn > * { position: relative; }
+.conn .bigflag { position: absolute; right: -18px; top: 50%; transform: translateY(-58%) rotate(-8deg); font-size: 150px; line-height: 1; opacity: .09; pointer-events: none; filter: saturate(.8); }
+.conn-title { font-size: 17px; font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 30px; }
+.conn-row { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); margin-top: 2px; }
+.conn-row b { color: var(--text); font-weight: 600; }
+.speeds { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.btn-main { width: 100%; margin-top: 14px; height: 44px; border-radius: 10px; border: 0; background: var(--accent); color: var(--accent-ink); font-weight: 650; font-size: 15px; cursor: pointer; transition: background .2s; }
+.btn-main:hover { background: var(--accent-2); }
+.btn-main.disconnect { background: transparent; border: 1.5px solid rgba(255,255,255,.55); color: var(--text); }
+.btn-main.disconnect:hover { background: rgba(255,255,255,.07); }
+.btn-main:disabled { opacity: .6; cursor: default; }
+.btn-main small { display: block; font-weight: 400; font-size: 11px; opacity: .8; margin-top: -2px; }
+
+.tabs { display: grid; grid-template-columns: repeat(3, 1fr); margin: 14px 14px 0; background: var(--bg); border-radius: 10px; padding: 3px; }
+.tab { height: 34px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; font-weight: 600; }
+.tab[aria-selected="true"] { background: var(--raise); color: var(--text); }
+.search { margin: 12px 14px 4px; position: relative; }
+.search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--faint); }
+.search input { width: 100%; height: 38px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--text); padding: 0 12px 0 34px; outline: none; }
+.search input:focus { border-color: var(--accent); }
+.panel { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 6px 14px 14px; scrollbar-gutter: stable; }
+.panel::-webkit-scrollbar { width: 8px; } .panel::-webkit-scrollbar-thumb { background: var(--raise); border-radius: 8px; }
+.section-label { font-size: 11.5px; text-transform: uppercase; letter-spacing: .6px; color: var(--faint); margin: 12px 4px 6px; display: flex; justify-content: space-between; align-items: center; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; background: var(--bg); padding: 3px; border-radius: 9px; margin: 8px 0 4px; }
+.seg button { border: 0; border-radius: 7px; height: 30px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12.5px; font-weight: 600; }
+.seg button[aria-pressed="true"] { background: var(--raise); color: var(--text); }
+.hint { color: var(--faint); font-size: 12px; margin: 2px 4px 6px; }
+
+.row { display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 9px; cursor: default; }
+.row:hover { background: var(--card); }
+.row.active { background: rgba(122,92,255,.14); }
+.row .flag { font-size: 20px; width: 26px; text-align: center; flex: none; }
+.row .grow { flex: 1; min-width: 0; }
+.row .name { font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .sub { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .acts { display: flex; gap: 2px; opacity: .0; transition: opacity .15s; }
+.row:hover .acts, .row.active .acts, .row .acts:focus-within { opacity: 1; }
+.pill { font-size: 10.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; padding: 2px 7px; border-radius: 99px; background: var(--raise); color: var(--muted); }
+.pill.on { background: rgba(47,208,143,.15); color: var(--ok); }
+.connect-ic { width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--line); background: transparent; display: grid; place-items: center; cursor: pointer; color: var(--muted); }
+.connect-ic:hover { border-color: var(--accent); color: var(--text); background: rgba(122,92,255,.18); }
+.row.active .connect-ic { border-color: var(--ok); color: var(--ok); }
+.connect-ic svg { width: 15px; height: 15px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 9px; border: 0; background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
+.btn:hover { background: var(--accent-2); }
+.btn.ghost { background: var(--raise); color: var(--text); } .btn.ghost:hover { background: var(--line); }
+.btn.danger { background: var(--bad); color: #fff; }
+.btn.small { height: 30px; padding: 0 10px; font-size: 12.5px; }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn svg { width: 15px; height: 15px; }
+.note { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; color: var(--muted); margin: 8px 0; }
+.note.warn { border-color: rgba(245,177,61,.4); }
+.note b { color: var(--text); }
+a { color: var(--accent-2); }
+.empty { color: var(--muted); text-align: center; padding: 26px 10px; font-size: 13px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin: 8px 0; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13px; }
+.kv span:nth-child(odd) { color: var(--muted); }
+.code { font: 700 22px ui-monospace, Consolas, monospace; letter-spacing: 2px; user-select: text; }
+label.f { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+input.f, select.f { width: 100%; height: 38px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--text); padding: 0 10px; outline: none; user-select: text; }
+input.f:focus, select.f:focus { border-color: var(--accent); }
+input[type=file].f { padding: 7px 10px; height: auto; }
+
+/* ---------- map stage ---------- */
+.stage { position: relative; min-width: 0; min-height: 0; display: grid; grid-template-rows: 1fr auto; background: radial-gradient(ellipse at 50% 35%, #1c1d23, var(--bg) 70%); }
+.mapwrap { position: relative; overflow: hidden; cursor: grab; }
+.mapwrap.drag { cursor: grabbing; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; }
+#map .land { fill: var(--land); stroke: var(--land-line); stroke-width: .5; vector-effect: non-scaling-stroke; }
+#map .mk { fill: var(--marker); cursor: pointer; transition: fill .15s; }
+#map .mk:hover { fill: var(--accent-2); }
+#map .mk.sel { fill: var(--accent); }
+#map .link { fill: none; stroke: var(--accent-2); stroke-width: 1.6; vector-effect: non-scaling-stroke; stroke-dasharray: 6 5; animation: dash 1.2s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -11; } }
+#map .home { fill: var(--accent); stroke: #fff; vector-effect: non-scaling-stroke; stroke-width: 1.5; }
+#map .exit { fill: var(--ok); stroke: #fff; vector-effect: non-scaling-stroke; stroke-width: 1.5; }
+#map .pulse { fill: var(--ok); opacity: .35; animation: pulse 2s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes pulse { from { transform: scale(.6); opacity: .5; } to { transform: scale(2.4); opacity: 0; } }
+.badge { position: absolute; top: 0; left: 50%; transform: translateX(-50%); background: var(--side); border: 1px solid var(--line); border-top: 0;
+  border-radius: 0 0 26px 26px; padding: 10px 34px 14px; text-align: center; z-index: 2; min-width: 230px; }
+.badge .state { font-weight: 800; letter-spacing: 1.2px; font-size: 16px; color: var(--bad); }
+.badge.on .state { color: var(--ok); } .badge.wait .state { color: var(--warn); }
+.badge .where { color: var(--muted); font-size: 12px; margin-top: 2px; white-space: nowrap; }
+.zoom { position: absolute; right: 16px; top: 16px; display: flex; gap: 6px; z-index: 2; }
+.zoom button { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--side); cursor: pointer; display: grid; place-items: center; color: var(--muted); }
+.zoom button:hover { color: var(--text); background: var(--raise); }
+.zoom svg { width: 16px; height: 16px; }
+.legend { position: absolute; left: 16px; top: 16px; z-index: 2; color: var(--faint); font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+.legend span { display: flex; align-items: center; gap: 6px; } .legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+.toast { position: absolute; left: 16px; bottom: 14px; z-index: 3; width: min(460px, calc(100% - 32px)); background: var(--side); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+.toast .t-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 600; }
+.toast pre { margin: 6px 0 0; white-space: pre-wrap; font: 12px/1.5 ui-monospace, Consolas, monospace; color: var(--muted); max-height: 140px; overflow: auto; user-select: text; }
+.toast .err { color: var(--bad); }
+.spinner { width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent-2); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; vertical-align: -2px; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.traffic { display: grid; grid-template-columns: 250px 1fr; gap: 22px; padding: 14px 22px 16px; border-top: 1px solid var(--line); background: rgba(22,23,27,.85); }
+.traffic h3 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.stats { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.stats span:nth-child(odd) { color: var(--muted); }
+.stats .down { color: var(--ok); } .stats .up { color: var(--bad); }
+.chart { position: relative; min-width: 0; }
+.chart canvas { width: 100%; height: 110px; display: block; }
+.chart .axis { display: flex; justify-content: space-between; color: var(--faint); font-size: 11px; margin-top: 2px; }
+.chart .max { position: absolute; right: 0; top: -20px; color: var(--faint); font-size: 11px; }
+
+/* ---------- drawer & modal ---------- */
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 380px; max-width: 100%; background: var(--side); border-left: 1px solid var(--line); z-index: 10; padding: 18px; overflow-y: auto; box-shadow: -10px 0 40px rgba(0,0,0,.4); }
+.drawer h2, .modal h2 { margin: 0; font-size: 17px; }
+.d-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.modal { position: fixed; z-index: 11; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 430px; max-width: calc(100% - 32px); background: var(--side); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.modal .m-body { color: var(--muted); margin: 10px 0 4px; }
+.modal .m-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.devlist { margin: 6px 0 0; padding: 0; list-style: none; font-size: 13px; }
+.devlist li { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.devlist li:last-child { border: 0; }
+.ok-text { color: var(--ok); } .err-text { color: var(--bad); }
+@media (max-width: 1080px) { .traffic { grid-template-columns: 1fr; } .legend { display: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9b85ff"/><stop offset="1" stop-color="#5b3cf0"/></linearGradient></defs>
+        <circle cx="12" cy="12" r="11" fill="url(#lg)"/><circle cx="12" cy="12" r="6.5" fill="none" stroke="#fff" stroke-width="1.6"/><path d="M12 4v16M4 12h16" stroke="#fff" stroke-width="1.6"/></svg>
+      Geo Unlocker
+    </div>
+    <div class="spacer"></div>
+    <button class="chip-btn" id="updBtn" title="About &amp; updates"><span class="dot" id="updDot"></span><span id="updLabel">Geo Unlocker</span></button>
+    <button class="chip-btn" id="piBtn" title="Raspberry Pi: route your TV and other devices"><span class="dot" id="piDot"></span>Raspberry Pi</button>
+    <button class="icon-btn" id="quitBtn" title="Disconnect and quit">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>
+    </button>
+  </header>
+
+  <aside class="side">
+    <section class="conn" id="conn">
+      <div class="bigflag" id="bigFlag"></div>
+      <div class="conn-title" id="connTitle">Loading…</div>
+      <div class="conn-row"><span>IP: <b id="connIp">—</b></span><span id="connWhere"></span></div>
+      <div class="conn-row"><span id="connProto">—</span><span class="speeds">↓ <b id="spDown">—</b>&nbsp; ↑ <b id="spUp">—</b></span></div>
+      <button class="btn-main" id="mainBtn">Quick connect</button>
+    </section>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="tor" aria-selected="true">Tor</button>
+      <button class="tab" role="tab" data-tab="vpn" aria-selected="false">VPN</button>
+      <button class="tab" role="tab" data-tab="cloud" aria-selected="false">Cloud</button>
+    </nav>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="search" type="search" placeholder="Search" autocomplete="off" spellcheck="false">
+    </div>
+
+    <div class="panel" data-panel="tor" id="torPanel">
+      <div class="seg" id="torScope">
+        <button data-scope="system" aria-pressed="true">Whole computer</button>
+        <button data-scope="proxy" aria-pressed="false">Proxy apps only</button>
+      </div>
+      <div class="hint" id="torScopeHint"></div>
+      <div class="note warn" id="torMissing" hidden></div>
+      <div id="torList"></div>
+    </div>
+
+    <div class="panel" data-panel="vpn" id="vpnPanel" hidden>
+      <div class="section-label"><span>Your profiles</span>
+        <button class="btn small ghost" id="addProfile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>Add</button></div>
+      <div id="vpnList"></div>
+      <div class="hint">WireGuard profiles connect this computer (all of its traffic). OpenVPN profiles can be sent to the Raspberry Pi.</div>
+    </div>
+
+    <div class="panel" data-panel="cloud" id="cloudPanel" hidden>
+      <div class="section-label"><span>Microsoft Azure</span><span id="cloudSignOut"></span></div>
+      <div id="cloudBody"><div class="empty"><span class="spinner"></span>Loading…</div></div>
+    </div>
+  </aside>
+
+  <main class="stage">
+    <div class="mapwrap" id="mapwrap">
+      <div class="badge" id="badge"><div class="state" id="badgeState">UNPROTECTED</div><div class="where" id="badgeWhere">Your traffic uses your normal connection</div></div>
+      <div class="legend"><span><i style="background:var(--accent)"></i>You</span><span><i style="background:var(--ok)"></i>Exit location</span><span><i style="background:var(--marker)"></i>Available</span></div>
+      <div class="zoom">
+        <button id="zoomOut" title="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/></svg></button>
+        <button id="zoomReset" title="Whole world"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg></button>
+        <button id="zoomIn" title="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg></button>
+      </div>
+      <svg id="map" preserveAspectRatio="xMidYMid meet" aria-label="World map">
+        <path class="land" id="land"/>
+        <g id="markers"></g>
+        <path class="link" id="link"/>
+        <g id="pins"></g>
+      </svg>
+      <div class="toast" id="toast" hidden>
+        <div class="t-head"><span id="toastTitle"></span><button class="icon-btn" id="toastClose" title="Dismiss" style="width:26px;height:26px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+        <pre id="toastBody"></pre>
+      </div>
+    </div>
+    <section class="traffic">
+      <div>
+        <h3>Session traffic</h3>
+        <div class="stats">
+          <span>Session</span><span id="stSession">—</span>
+          <span>Down volume</span><span id="stDownVol">—</span>
+          <span>Up volume</span><span id="stUpVol">—</span>
+          <span>Down speed</span><span class="down" id="stDown">—</span>
+          <span>Up speed</span><span class="up" id="stUp">—</span>
+        </div>
+      </div>
+      <div class="chart"><span class="max" id="chartMax"></span><canvas id="chart"></canvas><div class="axis"><span>60 seconds</span><span>now</span></div></div>
+    </section>
+  </main>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="piDrawer" hidden>
+  <div class="d-head"><h2>Raspberry Pi</h2><button class="icon-btn" id="piClose" title="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <p style="color:var(--muted);margin:0 0 6px">The Pi routes devices that can't run a VPN (smart TVs, monitors, streaming sticks). Send it profiles or your cloud server from here.</p>
+  <label class="f" for="piUrl">Pi address</label><input class="f" id="piUrl" placeholder="192.168.1.10" spellcheck="false">
+  <label class="f" for="piPass">Pi password <span style="color:var(--faint)">(leave empty to keep the saved one)</span></label><input class="f" id="piPass" type="password" autocomplete="off">
+  <div style="margin-top:12px"><button class="btn" id="piSave">Save &amp; test</button></div>
+  <div id="piStatus"></div>
+</aside>
+
+<aside class="drawer" id="updDrawer" hidden>
+  <div class="d-head"><h2>About &amp; updates</h2><button class="icon-btn" id="updClose" title="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div id="updBody"></div>
+</aside>
+
+<div id="modalHost"></div>
+
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const RN = new Intl.DisplayNames(["en"], { type: "region" });
+const flag = cc => cc && /^[a-z]{2}$/i.test(cc) ? String.fromCodePoint(...[...cc.toUpperCase()].map(c => 127397 + c.charCodeAt(0))) : "🌐";
+const cname = cc => { if (!cc) return "Any country"; try { return RN.of(cc.toUpperCase()); } catch { return cc.toUpperCase(); } };
+const store = { get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+                set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+const IC = {
+  power: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 4v8"/><path d="M6.6 7.4a7 7 0 1 0 10.8 0"/></svg>',
+  send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 12 20 4l-5 16-3-7z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
+};
+
+async function api(path, opts = {}) {
+  const init = { method: opts.method || (opts.body !== undefined ? "POST" : "GET"), headers: {} };
+  if (opts.body !== undefined) { init.body = JSON.stringify(opts.body); init.headers["Content-Type"] = "application/json"; }
+  const r = await fetch(path, init), data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+
+// ---------- notifications & dialogs ----------
+let toastDismissed = null, flash = null;
+function notify(msg, error = false) { flash = { title: error ? "Something went wrong" : "Done", body: msg, error, until: Date.now() + 6000 }; renderToast(); }
+const act = fn => async (...a) => { try { await fn(...a); } catch (e) { notify(e.message, true); } refresh(); };
+function modal({ title, body = "", ok = "OK", cancel = "Cancel", danger = false }) {
+  return new Promise(resolve => {
+    const host = $("#modalHost");
+    host.innerHTML = `<div class="scrim"></div><div class="modal" role="dialog" aria-modal="true"><h2>${esc(title)}</h2>
+      <div class="m-body">${body}</div><div class="m-acts">${cancel ? `<button class="btn ghost" data-r="0">${esc(cancel)}</button>` : ""}
+      <button class="btn ${danger ? "danger" : ""}" data-r="1">${esc(ok)}</button></div></div>`;
+    const close = v => { host.innerHTML = ""; resolve(v); };
+    host.onclick = e => { const r = e.target.closest("[data-r]"); if (r) close(r.dataset.r === "1"); else if (e.target.classList.contains("scrim")) close(false); };
+    host.querySelector(".m-body input")?.focus();
+  });
+}
+
+// ---------- state ----------
+let S = null, tab = store.get("tab", "tor"), torScope = store.get("torScope", "system");
+let torList = null, profiles = [], provider = "azure", cloudInfo = {};
+let home = store.get("home", null), exitGeo = null, lastConnKey = "";
+
+// ---------- tabs & search ----------
+function setTab(t) {
+  tab = t; store.set("tab", t);
+  $$(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
+  $$("[data-panel]").forEach(p => p.hidden = p.dataset.panel !== t);
+  $("#search").value = ""; applySearch();
+  if (t === "vpn") loadProfiles();
+  if (t === "cloud") selectProvider(provider);
+  drawMarkers();
+}
+$$(".tab").forEach(b => b.onclick = () => setTab(b.dataset.tab));
+function applySearch() {
+  const q = $("#search").value.trim().toLowerCase();
+  $$(`[data-panel="${tab}"] .row[data-q]`).forEach(r => r.hidden = q && !r.dataset.q.includes(q));
+}
+$("#search").oninput = applySearch;
+
+// ---------- connection view ----------
+function view() {
+  if (!S) return { state: "off" };
+  const m = S.mode, j = S.job;
+  const switching = j && j.running && j.title !== "Disconnecting";
+  let up = false, proto = "", cc = "", title = "", traffic = null;
+  if (m.kind === "tor") {
+    up = S.tor.running && S.tor.bootstrap >= 100 && (m.system === false || S.tor_tunnel);
+    proto = m.system === false ? "Tor · proxy apps" : "Tor · whole computer";
+    cc = m.country || exitGeo?.country?.toLowerCase() || "";
+    title = `${cname(m.country)} » Tor`;
+    if (m.system !== false) traffic = S.tor_traffic;
+  } else if (m.kind === "vpn" || m.kind === "cloud") {
+    const v = S.vpn;
+    up = v.kind === "wireguard" && v.handshake_age != null && v.handshake_age < 180;
+    proto = "WireGuard";
+    if (v.kind === "wireguard") traffic = { rx: v.rx || 0, tx: v.tx || 0 };
+    if (m.kind === "cloud") {
+      cc = S.cloud[m.provider]?.country || "";
+      title = `${cname(cc)} » Azure`;
+    } else { cc = exitGeo?.country?.toLowerCase() || ""; title = m.name; }
+  }
+  const state = m.kind === "off" ? (switching ? "wait" : "off") : (up ? "on" : "wait");
+  return { state, proto, cc, title, traffic, mode: m, switching };
+}
+
+async function refresh() {
+  try { S = await api("/api/status"); } catch { $("#connTitle").textContent = "Geo Unlocker isn't responding"; return; }
+  const v = view();
+  // connection card
+  $("#conn").className = "conn " + (v.state === "off" ? "" : v.state);
+  $("#connTitle").textContent = v.state === "off" ? "Not connected" : v.title;
+  $("#bigFlag").textContent = v.state === "off" ? "" : flag(v.cc);
+  const geo = v.state === "on" ? exitGeo : v.state === "off" ? home : null;
+  $("#connIp").textContent = geo?.ip || "—";
+  $("#connWhere").textContent = geo ? [geo.city, geo.country && cname(geo.country)].filter(Boolean).join(", ") : "";
+  $("#connProto").textContent = v.state === "off" ? "Unprotected" : v.proto;
+  const mb = $("#mainBtn"), last = S.last_mode;
+  if (v.state === "off") {
+    mb.className = "btn-main";
+    mb.innerHTML = `Quick connect<small>${last ? esc(describeMode(last)) : "Tor · fastest country"}</small>`;
+  } else { mb.className = "btn-main disconnect"; mb.textContent = v.state === "wait" ? "Cancel" : "Disconnect"; }
+  mb.disabled = !!(S.job && S.job.running && S.job.title === "Disconnecting");
+  // badge
+  $("#badge").className = "badge " + (v.state === "off" ? "" : v.state);
+  $("#badgeState").textContent = v.state === "on" ? "CONNECTED" : v.state === "wait" ? "CONNECTING…" : "UNPROTECTED";
+  $("#badgeWhere").textContent = v.state === "on" ? `Exit: ${exitGeo ? [exitGeo.city, cname(exitGeo.country)].filter(Boolean).join(", ") : cname(v.cc)}`
+    : v.state === "wait" ? (S.job?.lines?.at(-1) || "Setting up the connection…") : "Your traffic uses your normal connection";
+  // tools
+  const t = S.tools, h = S.hints;
+  $("#torMissing").hidden = t.tor; $("#torMissing").innerHTML = `<b>Tor isn't installed.</b> ${esc(h.tor)}`;
+  $("#piDot").className = "dot " + (S.pi.url ? "ok" : "");
+  renderUpdate(v);
+  // ip/geo when the connection settles
+  const key = JSON.stringify([v.mode, v.state]);
+  if (key !== lastConnKey) {
+    const wasOn = lastConnKey.endsWith('"on"]');
+    lastConnKey = key;
+    if (v.state === "off" && wasOn) focusMap([]);
+    if (v.state === "off") exitGeo = null;
+    if (v.state !== "wait") setTimeout(() => lookupIp(key, v.state), v.state === "on" ? 1500 : 300);
+  }
+  trackTraffic(v);
+  renderToast();
+  renderTorList(); renderVpnList();
+  drawPins(v);
+  $$("button[data-busy]").forEach(b => b.disabled = !!(S.job && S.job.running));
+}
+
+function describeMode(m) {
+  if (m.kind === "tor") return `Tor · ${cname(m.country)}${m.system === false ? " · proxy apps" : ""}`;
+  if (m.kind === "vpn") return `VPN · ${m.name}`;
+  if (m.kind === "cloud") return "Cloud · Azure";
+  return "";
+}
+
+async function lookupIp(key, state) {
+  try {
+    const g = await api("/api/ip");
+    if (key !== lastConnKey) return;
+    const [lat, lon] = (g.loc || "").split(",").map(Number);
+    const geo = { ip: g.ip, city: g.city, country: (g.country || "").toLowerCase(), lat, lon };
+    if (state === "off") { home = geo; store.set("home", geo); } else exitGeo = geo;
+    await refresh();
+    if (state === "on") focusConnection();
+  } catch { /* offline or blocked by the exit: the map falls back to country positions */ }
+}
+
+$("#mainBtn").onclick = act(async () => {
+  const v = view();
+  if (v.state !== "off") return api("/api/off", { body: {} });
+  return api("/api/mode", { body: S.last_mode || { kind: "tor", country: "", system: true } });
+});
+$("#quitBtn").onclick = async () => {
+  if (!await modal({ title: "Quit Geo Unlocker?", body: "This disconnects and restores your normal connection.", ok: "Quit" })) return;
+  await api("/api/quit", { body: {} }).catch(() => {});
+  document.body.innerHTML = '<div style="display:grid;place-items:center;height:100vh;color:#9b9caa">Geo Unlocker has closed. You can close this window.</div>';
+};
+
+// ---------- toast (job progress) ----------
+function renderToast() {
+  const j = S?.job, el = $("#toast");
+  if (flash && Date.now() < flash.until) {
+    el.hidden = false; $("#toastTitle").innerHTML = esc(flash.title);
+    $("#toastBody").innerHTML = flash.error ? `<span class="err">${esc(flash.body)}</span>` : esc(flash.body);
+    return;
+  }
+  flash = null;
+  const id = j ? j.title + "|" + (j.error || "") : null;
+  if (!j || (!j.running && !j.error) || toastDismissed === id) { el.hidden = true; return; }
+  el.hidden = false;
+  $("#toastTitle").innerHTML = (j.running ? '<span class="spinner"></span>' : "") + esc(j.title) + (j.error ? " failed" : "");
+  $("#toastBody").innerHTML = j.lines.slice(-8).map(esc).join("\n") + (j.error ? `\n<span class="err">${esc(j.error)}</span>` : "");
+}
+$("#toastClose").onclick = () => { flash = null; const j = S?.job; toastDismissed = j ? j.title + "|" + (j.error || "") : null; renderToast(); };
+
+// ---------- Tor ----------
+function setScope(s) {
+  torScope = s; store.set("torScope", s);
+  $$("#torScope button").forEach(b => b.setAttribute("aria-pressed", b.dataset.scope === s));
+  $("#torScopeHint").textContent = s === "system" ? "Every app goes through Tor, including DNS. Only web-style (TCP) traffic works."
+    : "Only apps that follow the system proxy (most browsers) use Tor.";
+}
+$$("#torScope button").forEach(b => b.onclick = () => setScope(b.dataset.scope));
+setScope(torScope);
+const torConnect = act(cc => api("/api/tor/connect", { body: { country: cc, system: torScope === "system" } }));
+async function loadTor() {
+  try { torList = await api("/api/tor/countries"); }
+  catch { torList = ["us", "de", "nl", "fr", "gb", "ca", "ch", "se", "fi", "at"].map(code => ({ code, relays: 0, mbps: 0 })); }
+  renderTorList(true); drawMarkers();
+}
+let lastTorHtml = "";
+function renderTorList(force) {
+  if (!torList) { $("#torList").innerHTML = '<div class="empty"><span class="spinner"></span>Loading countries…</div>'; return; }
+  const m = S?.mode, active = m?.kind === "tor" ? (m.country || "") : null;
+  const row = (code, name, sub) => `<div class="row ${active === code ? "active" : ""}" data-q="${esc((name + " " + code).toLowerCase())}">
+    <span class="flag">${flag(code)}</span><div class="grow"><div class="name">${esc(name)}</div><div class="sub">${esc(sub)}</div></div>
+    ${active === code ? '<span class="pill on">Connected</span>' : ""}
+    <button class="connect-ic" data-tor="${code}" title="Connect through ${esc(name)}">${IC.power}</button></div>`;
+  const html = '<div class="section-label"><span>Exit countries</span><span>' + torList.length + "</span></div>" +
+    row("", "Fastest country", "Tor picks the best exit") +
+    [...torList].sort((a, b) => cname(a.code).localeCompare(cname(b.code))).map(c => row(c.code, cname(c.code), c.relays ? `${c.relays} exit relays · ~${c.mbps} Mbit/s` : "Exit country")).join("");
+  if (html !== lastTorHtml || force) { $("#torList").innerHTML = lastTorHtml = html; applySearch(); }
+}
+$("#torList").onclick = e => { const b = e.target.closest("[data-tor]"); if (b) torConnect(b.dataset.tor); };
+
+// ---------- VPN ----------
+async function loadProfiles() { try { profiles = await api("/api/vpn/profiles"); renderVpnList(true); } catch {} }
+let lastVpnHtml = "";
+function renderVpnList(force) {
+  const m = S?.mode, active = m?.kind === "vpn" ? m.name : null, pi = S?.pi?.url;
+  const html = profiles.length ? profiles.map(p => `<div class="row ${active === p.name ? "active" : ""}" data-q="${esc(p.name.toLowerCase())}">
+      <span class="flag">🔐</span><div class="grow"><div class="name">${esc(p.name)}</div><div class="sub">${p.type === "wireguard" ? "WireGuard" : "OpenVPN · for the Raspberry Pi"}${p.auth ? " · with login" : ""}</div></div>
+      <div class="acts">${pi ? `<button class="icon-btn" data-pi="${esc(p.name)}" title="Copy to the Raspberry Pi">${IC.send}</button>` : ""}
+      <button class="icon-btn" data-del="${esc(p.name)}" title="Delete">${IC.trash}</button></div>
+      ${active === p.name ? '<span class="pill on">Connected</span>' : ""}
+      ${p.type === "wireguard" ? `<button class="connect-ic" data-vpn="${esc(p.name)}" title="Connect">${IC.power}</button>`
+        : '<span class="pill" title="OpenVPN profiles run on the Raspberry Pi">Pi only</span>'}</div>`).join("")
+    : '<div class="empty">No profiles yet.<br>Add a WireGuard <b>.conf</b> or OpenVPN <b>.ovpn</b> file from your VPN provider.</div>';
+  if (html !== lastVpnHtml || force) { $("#vpnList").innerHTML = lastVpnHtml = html; applySearch(); }
+}
+$("#vpnList").onclick = act(async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.vpn) await api("/api/vpn/connect", { body: { name: b.dataset.vpn } });
+  if (b.dataset.pi) { await api(`/api/vpn/profiles/${encodeURIComponent(b.dataset.pi)}/send-to-pi`, { body: {} }); notify(`"${b.dataset.pi}" is now on the Raspberry Pi.`); }
+  if (b.dataset.del && await modal({ title: "Delete profile?", body: `Delete <b>${esc(b.dataset.del)}</b> from this computer?`, ok: "Delete", danger: true })) {
+    await api(`/api/vpn/profiles/${encodeURIComponent(b.dataset.del)}`, { method: "DELETE" }); await loadProfiles();
+  }
+});
+// Add-profile dialog (reads the form before closing).
+$("#addProfile").onclick = () => {
+  const host = $("#modalHost");
+  host.innerHTML = `<div class="scrim"></div><div class="modal" role="dialog" aria-modal="true"><h2>Add a VPN profile</h2><div class="m-body">
+    <label class="f" for="mFile">WireGuard .conf or OpenVPN .ovpn file</label><input class="f" id="mFile" type="file" accept=".conf,.ovpn,text/plain">
+    <label class="f" for="mName">Name</label><input class="f" id="mName" placeholder="e.g. US-NewYork">
+    <label class="f" for="mUser">Username (OpenVPN, if your provider requires one)</label><input class="f" id="mUser" autocomplete="off">
+    <label class="f" for="mPass">Password</label><input class="f" id="mPass" type="password" autocomplete="off"></div>
+    <div class="m-acts"><button class="btn ghost" data-x>Cancel</button><button class="btn" data-save>Save</button></div></div>`;
+  host.onclick = act(async e => {
+    if (e.target.closest("[data-x]") || e.target.classList.contains("scrim")) { host.innerHTML = ""; return; }
+    if (!e.target.closest("[data-save]")) return;
+    const f = $("#mFile").files[0];
+    if (!f) throw new Error("Choose a .conf or .ovpn file");
+    await api("/api/vpn/profiles", { body: { name: $("#mName").value.trim() || f.name.replace(/\.[^.]+$/, ""), text: await f.text(),
+      username: $("#mUser").value, password: $("#mPass").value } });
+    host.innerHTML = ""; await loadProfiles();
+  });
+};
+
+// ---------- Cloud ----------
+async function selectProvider(pid) {
+  provider = pid;
+  if (!cloudInfo[pid]) $("#cloudBody").innerHTML = '<div class="empty"><span class="spinner"></span>Checking…</div>';
+  try { cloudInfo[pid] = await api(`/api/cloud/${pid}`); } catch (e) { $("#cloudBody").innerHTML = `<div class="note warn">${esc(e.message)}</div>`; return; }
+  if (provider === pid) renderCloud();
+}
+function renderCloud() {
+  const i = cloudInfo[provider], el = $("#cloudBody");
+  if (!i) return;
+  drawMarkers();
+  $("#cloudSignOut").innerHTML = i.account && !i.deployment ? '<button class="btn small ghost" id="cLogout">Sign out</button>' : "";
+  if (!i.account) { renderLogin(); return; }
+  const d = i.deployment, m = S?.mode, active = m?.kind === "cloud" && m.provider === provider;
+  let html = `<div class="hint">Signed in as <b style="color:var(--text)">${esc(i.account)}</b></div>`;
+  if (d) {
+    html += `<div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="font-size:26px">${flag(d.country)}</span>
+      <div><div style="font-weight:650">${esc(cname(d.country))}</div><div class="sub" style="color:var(--muted);font-size:12px">Your ${esc(i.name)} server</div></div>
+      ${active ? '<span class="pill on" style="margin-left:auto">Connected</span>' : ""}</div>
+      <div class="kv"><span>Region</span><span>${esc(d.region)}</span><span>Address</span><span>${esc(d.ip)}</span><span>Created</span><span>${new Date(d.created * 1000).toLocaleString()}</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">
+        <button class="btn small" data-busy="1" id="cConnect">${IC.power}Connect this computer</button>
+        <button class="btn small ghost" id="cPi" ${S?.pi?.url ? "" : "disabled title='Set up the Raspberry Pi first'"}>${IC.send}Use on the Pi</button>
+        <button class="btn small danger" data-busy="1" id="cDestroy">${IC.trash}Delete</button></div></div>
+      <div class="note">It costs money while it exists. Delete it when you're done.</div>`;
+  } else {
+    const subs = i.options?.subscriptions || [];
+    if (i.options?.error) html += `<div class="note warn">${esc(i.options.error)}</div>`;
+    if (!subs.length) html += `<div class="note warn"><b>No active Azure subscription.</b> Create one at
+      <a href="https://azure.microsoft.com/free/" target="_blank">azure.microsoft.com/free</a> (the free account works), then come back.</div>`;
+    else if (subs.length > 1) html += `<label class="f" for="cSub">Subscription</label><select class="f" id="cSub">${
+      subs.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("")}</select>`;
+    const codes = Object.keys(i.regions).sort((a, b) => cname(a).localeCompare(cname(b)));
+    html += `<div class="section-label"><span>Create a server in</span><span>${codes.length}</span></div>` + codes.map(cc => `
+      <div class="row" data-q="${esc((cname(cc) + " " + cc + " " + i.regions[cc]).toLowerCase())}"><span class="flag">${flag(cc)}</span>
+        <div class="grow"><div class="name">${esc(cname(cc))}</div><div class="sub">${esc(i.regions[cc])}</div></div>
+        <button class="connect-ic" data-deploy="${cc}" title="Create a server in ${esc(cname(cc))}">${IC.power}</button></div>`).join("");
+  }
+  html += `<div class="note">💲 ${esc(i.cost_note)} Big streaming services often block cloud IP addresses.</div>`;
+  el.innerHTML = html; applySearch();
+}
+$("#cloudBody").onclick = act(async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const i = cloudInfo[provider];
+  if (b.dataset.deploy) {
+    const cc = b.dataset.deploy;
+    if (!await modal({ title: `Create a server in ${cname(cc)}?`, ok: "Create & connect",
+      body: `Geo Unlocker will create a small VM in <b>${esc(i.name)}</b> (${esc(i.regions[cc])}) running WireGuard, then connect this computer to it.<br><br>${esc(i.cost_note)}` })) return;
+    await api(`/api/cloud/${provider}/deploy`, { body: { country: cc, subscription: $("#cSub")?.value || i.options?.subscriptions?.[0]?.id || "" } });
+    waitJobThen(() => selectProvider(provider));
+  }
+  if (b.id === "cConnect") await api(`/api/cloud/${provider}/connect`, { body: {} });
+  if (b.id === "cPi") { const r = await api(`/api/cloud/${provider}/send-to-pi`, { body: { connect: true } }); notify(`The Raspberry Pi now routes your devices through this server ("${r.name}").`); }
+  if (b.id === "cDestroy") {
+    if (!await modal({ title: "Delete the cloud server?", ok: "Delete", danger: true, body: "This stops the charges. If the Raspberry Pi uses this server, it loses it too." })) return;
+    await api(`/api/cloud/${provider}/destroy`, { body: {} });
+    waitJobThen(() => selectProvider(provider));
+  }
+  if (b.id === "cLogin") { renderLogin(await api(`/api/cloud/${provider}/login`, { body: {} })); pollLogin(); }
+  if (b.id === "cLogout") { await api(`/api/cloud/${provider}/logout`, { body: {} }); cloudInfo[provider] = null; selectProvider(provider); }
+});
+function waitJobThen(fn) { const t = setInterval(() => { if (S?.job?.running) return; clearInterval(t); fn(); }, 1500); }
+function renderLogin(snap) {
+  const i = cloudInfo[provider], l = snap || i.login, el = $("#cloudBody");
+  let html = `<div class="card"><div style="font-weight:650;margin-bottom:6px">Sign in to ${esc(i.name)}</div>
+    <div style="color:var(--muted);font-size:13px">Use your Microsoft account. Geo Unlocker creates and deletes the server for you; nothing else in your account is touched.</div>`;
+  if (!l || (l.done && !l.ok)) {
+    if (l && l.done && !l.ok) html += `<pre style="white-space:pre-wrap;color:var(--bad);font-size:12px">${esc(l.output)}</pre>`;
+    html += `<div style="margin-top:12px"><button class="btn" id="cLogin">Sign in</button></div>`;
+  } else if (l.done && l.ok) { selectProvider(provider); return; }
+  else {
+    html += l.url ? `<p style="font-size:13px">1. Open <a href="${esc(l.url)}" target="_blank">${esc(l.url.replace(/^https:\/\//, ""))}</a> and sign in</p>`
+                  : `<p style="color:var(--muted)"><span class="spinner"></span>Waiting for the sign-in link…</p>`;
+    if (l.device_code) html += `<p style="font-size:13px">2. Enter this code when asked:</p><p class="code">${esc(l.device_code)}</p><p class="hint">This updates by itself when you're done.</p>`;
+    html += `<p class="hint"><span class="spinner"></span>Waiting for you to finish signing in…</p>`;
+  }
+  el.innerHTML = html + "</div>";
+}
+let loginTimer = null;
+function pollLogin() {
+  clearInterval(loginTimer);
+  loginTimer = setInterval(async () => {
+    if (!provider) return;
+    const info = await api(`/api/cloud/${provider}`).catch(() => null);
+    if (!info) return;
+    cloudInfo[provider] = info;
+    if (info.account || (info.login && info.login.done)) { clearInterval(loginTimer); renderCloud(); }
+    else renderLogin();
+  }, 4000);
+}
+
+// ---------- updates ----------
+let restartRequested = false;
+function renderUpdate(v) {
+  const u = S.update; if (!u) return;
+  const ready = u.state === "ready", busy = ["checking", "downloading", "installing"].includes(u.state);
+  $("#updLabel").textContent = ready ? `Update ${u.latest} ready` : u.state === "installing" ? "Updating…" : `v${u.current}`;
+  $("#updDot").className = "dot " + (ready ? "warn" : u.state === "error" ? "bad" : u.enabled ? "ok" : "");
+  // After an install the app restarts itself (Windows: the installer does it).
+  if (u.state === "restart" && !restartRequested) {
+    restartRequested = true;
+    if (window.ipc) window.ipc.postMessage("restart");
+    else notify("The update is installed. Restart Geo Unlocker to finish.");
+  }
+  if ($("#updDrawer").hidden) return;
+  const when = u.checked_at ? new Date(u.checked_at * 1000).toLocaleString() : "not yet";
+  let state = "";
+  if (!u.enabled) state = '<div class="note">This build doesn\'t update itself (it wasn\'t built by the release pipeline).</div>';
+  else if (ready) state = `<div class="note warn"><b>Version ${esc(u.latest)} is ready.</b> ${v.state === "off" ? "It's installing now." : "It installs automatically when you disconnect, or install it now (this disconnects you)."}</div>
+    <button class="btn" id="updInstall" data-busy="1">Install now &amp; restart</button>`;
+  else if (busy) state = `<p class="hint"><span class="spinner"></span>${u.state === "checking" ? "Checking for updates…" : u.state === "downloading" ? `Downloading ${esc(u.latest || "")}…` : "Installing…"}</p>`;
+  else if (u.state === "error") state = `<div class="note warn"><span class="err-text">✖</span> ${esc(u.error)}</div>`;
+  else if (u.latest) state = `<p class="ok-text" style="margin:6px 0">✔ You're up to date.</p>`;
+  $("#updBody").innerHTML = `
+    <div class="card"><div class="kv"><span>Version</span><span>${esc(u.current)}</span>
+      <span>Latest</span><span>${esc(u.latest || "—")}</span><span>Last check</span><span>${esc(when)}</span></div></div>
+    ${state}
+    <label style="display:flex;gap:10px;align-items:center;margin:14px 0 6px;cursor:pointer">
+      <input type="checkbox" id="updAuto" ${u.auto ? "checked" : ""} ${u.enabled ? "" : "disabled"}> Install updates automatically</label>
+    <p class="hint">Updates come from the project's GitHub releases and are only installed if their signature checks out.
+      They never interrupt a connection: they install when you disconnect.</p>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn ghost" id="updCheck" ${u.enabled && !busy ? "" : "disabled"}>Check now</button>
+      ${u.notes_url ? `<a class="btn ghost" href="${esc(u.notes_url)}" target="_blank" style="text-decoration:none">Release notes</a>` : ""}</div>
+    <p class="hint" style="margin-top:18px">Third-party components: Tor, Wintun, boringtun, tun2proxy, Natural Earth, Twemoji. See NOTICE.md in the install folder.</p>`;
+}
+function openUpd(open) { $("#updDrawer").hidden = $("#scrim").hidden = !open; if (open) renderUpdate(view()); }
+$("#updBtn").onclick = () => openUpd(true);
+$("#updClose").onclick = () => openUpd(false);
+$("#updBody").onclick = act(async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.id === "updCheck") await api("/api/update/check", { body: {} });
+  if (b.id === "updInstall" && await modal({ title: "Install the update now?", body: "This disconnects you, installs the new version and restarts Geo Unlocker.", ok: "Install & restart" }))
+    await api("/api/update/install", { body: {} });
+});
+$("#updBody").onchange = act(async e => { if (e.target.id === "updAuto") await api("/api/update/auto", { body: { enabled: e.target.checked } }); });
+
+// ---------- Raspberry Pi drawer ----------
+function openPi(open) { $("#piDrawer").hidden = $("#scrim").hidden = !open; if (open) loadPi(); }
+$("#piBtn").onclick = () => openPi(true);
+$("#piClose").onclick = () => openPi(false);
+$("#scrim").onclick = () => { openPi(false); openUpd(false); };
+async function loadPi() {
+  const el = $("#piStatus");
+  el.innerHTML = '<p class="hint"><span class="spinner"></span>Checking…</p>';
+  try {
+    const i = await api("/api/pi");
+    if (i.url && document.activeElement !== $("#piUrl")) $("#piUrl").value = i.url.replace(/^http:\/\//, "");
+    if (!i.url) { el.innerHTML = ""; return; }
+    if (i.error) { el.innerHTML = `<div class="note warn"><span class="err-text">✖</span> ${esc(i.error)}</div>`; return; }
+    const s = i.status, devs = s.devices || [];
+    el.innerHTML = `<div class="card"><div class="ok-text" style="font-weight:600">● Connected to the Pi</div>
+      <div class="kv" style="margin-top:8px"><span>Routing through</span><span>${esc(s.active || "Nothing (normal internet)")}</span><span>Devices</span><span>${devs.length}</span></div>
+      ${devs.length ? `<ul class="devlist">${devs.map(d => `<li><span>${esc(d.name || "Device")}</span><span style="color:var(--muted)">${esc(d.ip)}</span></li>`).join("")}</ul>` : ""}
+      <p class="hint" style="margin-top:10px">Manage devices and profiles on the Pi's own page: <a href="${esc(i.url)}" target="_blank">${esc(i.url)}</a></p></div>`;
+  } catch (e) { el.innerHTML = `<div class="note warn">${esc(e.message)}</div>`; }
+}
+$("#piSave").onclick = act(async () => {
+  const pw = $("#piPass").value;
+  await api("/api/pi", { body: { url: $("#piUrl").value, password: pw === "" ? null : pw } });
+  $("#piPass").value = ""; await loadPi();
+});
+
+// ---------- map ----------
+const svg = $("#map"), W = WORLD.w, H = WORLD.h;
+$("#land").setAttribute("d", WORLD.path);
+let vb = { x: 0, y: 0, w: W, h: H };
+function setVb(n) {
+  n.w = Math.min(Math.max(n.w, W / 12), W); n.h = n.w * H / W;
+  n.x = Math.min(Math.max(n.x, 0), W - n.w); n.y = Math.min(Math.max(n.y, 0), H - n.h);
+  vb = n; svg.setAttribute("viewBox", `${n.x} ${n.y} ${n.w} ${n.h}`); drawMarkers(); drawPins(view());
+}
+const scale = () => vb.w / W; // marker size follows zoom so they stay the same on screen
+let anim = null;
+function animateTo(t, ms = 650) {
+  cancelAnimationFrame(anim); const from = { ...vb }, start = performance.now();
+  const step = now => { const k = Math.min(1, (now - start) / ms), e = 1 - Math.pow(1 - k, 3);
+    setVb({ x: from.x + (t.x - from.x) * e, y: from.y + (t.y - from.y) * e, w: from.w + (t.w - from.w) * e, h: 0 });
+    if (k < 1) anim = requestAnimationFrame(step); };
+  anim = requestAnimationFrame(step);
+}
+/** Zoom to fit the given map points (or the whole world when none). */
+function focusMap(points) {
+  if (!points.length) return animateTo({ x: 0, y: 0, w: W, h: H });
+  const xs = points.map(p => p[0]), ys = points.map(p => p[1]), r = svg.getBoundingClientRect();
+  const aspect = r.width && r.height ? r.width / r.height : W / H;
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  let w = Math.max(Math.max(...xs) - Math.min(...xs) + 120, (Math.max(...ys) - Math.min(...ys) + 120) * aspect, W / 4.5);
+  w = Math.min(w, W);
+  animateTo({ x: cx - w / 2, y: cy - (w / aspect) / 2, w, h: 0 });
+}
+function zoomAt(f, cx = vb.x + vb.w / 2, cy = vb.y + vb.h / 2) { const w = vb.w / f; setVb({ x: cx - (cx - vb.x) / f, y: cy - (cy - vb.y) / f, w, h: w * H / W }); }
+$("#zoomIn").onclick = () => zoomAt(1.5); $("#zoomOut").onclick = () => zoomAt(1 / 1.5); $("#zoomReset").onclick = () => setVb({ x: 0, y: 0, w: W, h: H });
+function svgPoint(e) { const r = svg.getBoundingClientRect(), s = Math.max(vb.w / r.width, vb.h / r.height);
+  const ox = (r.width - vb.w / s) / 2, oy = (r.height - vb.h / s) / 2; return [vb.x + (e.clientX - r.left - ox) * s, vb.y + (e.clientY - r.top - oy) * s]; }
+$("#mapwrap").addEventListener("wheel", e => { e.preventDefault(); const [x, y] = svgPoint(e); zoomAt(e.deltaY < 0 ? 1.25 : 0.8, x, y); }, { passive: false });
+let drag = null;
+svg.addEventListener("pointerdown", e => { if (e.target.closest(".mk")) return; drag = { x: e.clientX, y: e.clientY, vb: { ...vb } }; $("#mapwrap").classList.add("drag"); svg.setPointerCapture(e.pointerId); });
+svg.addEventListener("pointermove", e => { if (!drag) return; const r = svg.getBoundingClientRect(), s = Math.max(vb.w / r.width, vb.h / r.height);
+  setVb({ ...drag.vb, x: drag.vb.x - (e.clientX - drag.x) * s, y: drag.vb.y - (e.clientY - drag.y) * s }); });
+svg.addEventListener("pointerup", () => { drag = null; $("#mapwrap").classList.remove("drag"); });
+const ll = (lat, lon) => [(lon + 180) / 360 * W, (WORLD.lat0 - lat) / (WORLD.lat0 - WORLD.lat1) * H];
+const pt = cc => cc && WORLD.points[cc.toLowerCase()];
+function tri(x, y, s, cls, attrs = "") { const a = 5 * s; return `<path class="mk ${cls}" ${attrs} d="M${x - a},${y - a * .9}L${x + a},${y - a * .9}L${x},${y + a}Z"/>`; }
+function drawMarkers() {
+  const s = scale(); let codes = [];
+  if (tab === "tor" && torList) codes = torList.map(c => c.code);
+  if (tab === "cloud" && provider && cloudInfo[provider]?.regions && !cloudInfo[provider]?.deployment) codes = Object.keys(cloudInfo[provider].regions);
+  const sel = view().cc;
+  $("#markers").innerHTML = codes.filter(pt).map(cc => { const [x, y] = pt(cc);
+    return tri(x, y, s, cc === sel ? "sel" : "", `data-cc="${cc}"`) + `<title>${esc(cname(cc))}</title>`; }).join("");
+}
+$("#markers").addEventListener("click", e => {
+  const cc = e.target.closest("[data-cc]")?.dataset.cc; if (!cc) return;
+  if (tab === "tor") torConnect(cc);
+  if (tab === "cloud") $(`[data-deploy="${cc}"]`)?.click();
+});
+function focusConnection() {
+  const v = view(), pts = [];
+  if (home && Number.isFinite(home.lat)) pts.push(ll(home.lat, home.lon));
+  const x = exitGeo && Number.isFinite(exitGeo.lat) ? ll(exitGeo.lat, exitGeo.lon) : pt(v.cc);
+  if (x) pts.push(x);
+  if (pts.length) focusMap(pts);
+}
+function drawPins(v) {
+  const s = scale();
+  const h = home && Number.isFinite(home.lat) ? ll(home.lat, home.lon) : null;
+  let x = null;
+  if (v.state === "on") x = exitGeo && Number.isFinite(exitGeo.lat) && (!v.cc || exitGeo.country === v.cc) ? ll(exitGeo.lat, exitGeo.lon) : pt(v.cc);
+  let pins = "";
+  if (x) pins += `<circle class="pulse" cx="${x[0]}" cy="${x[1]}" r="${7 * s}"/><circle class="exit" cx="${x[0]}" cy="${x[1]}" r="${4.2 * s}"/>`;
+  if (h) pins += `<circle class="home" cx="${h[0]}" cy="${h[1]}" r="${4.6 * s}"/>`;
+  $("#pins").innerHTML = pins;
+  if (h && x) { const mx = (h[0] + x[0]) / 2, my = Math.min(h[1], x[1]) - Math.abs(h[0] - x[0]) * .22 - 8 * s;
+    $("#link").setAttribute("d", `M${h[0]},${h[1]}Q${mx},${my} ${x[0]},${x[1]}`); }
+  else $("#link").setAttribute("d", "");
+}
+
+setVb(vb);
+
+// ---------- traffic ----------
+const fmtBytes = b => b == null ? "—" : b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : b < 1073741824 ? `${(b / 1048576).toFixed(1)} MB` : `${(b / 1073741824).toFixed(2)} GB`;
+const fmtRate = b => b == null ? "—" : fmtBytes(Math.round(b)) + "/s";
+const fmtDur = s => { const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? `${h}h ` : "") + (h || m ? `${m}m ` : "") + `${x}s`; };
+let base = null, prev = null, samples = [];
+function trackTraffic(v) {
+  const now = Date.now() / 1000, t = v.state === "on" ? v.traffic : null, since = S.connected_at;
+  if (!since || v.state === "off") { base = prev = null; samples = []; }
+  $("#stSession").textContent = since && v.state !== "off" ? fmtDur(Math.max(0, Math.floor(now - since))) : "—";
+  let down = null, up = null;
+  if (t) {
+    if (!base || base.since !== since || t.rx < base.rx) base = { since, rx: t.rx, tx: t.tx };
+    if (prev && now > prev.t) { down = Math.max(0, (t.rx - prev.rx) / (now - prev.t)); up = Math.max(0, (t.tx - prev.tx) / (now - prev.t)); }
+    prev = { t: now, rx: t.rx, tx: t.tx };
+    $("#stDownVol").textContent = fmtBytes(t.rx - base.rx); $("#stUpVol").textContent = fmtBytes(t.tx - base.tx);
+  } else { $("#stDownVol").textContent = $("#stUpVol").textContent = "—"; }
+  if (v.state === "on") { samples.push([down || 0, up || 0]); if (samples.length > 60) samples.shift(); }
+  $("#stDown").textContent = $("#spDown").textContent = t ? fmtRate(down ?? 0) : "—";
+  $("#stUp").textContent = $("#spUp").textContent = t ? fmtRate(up ?? 0) : "—";
+  drawChart(!!t);
+}
+let chartHasData = false;
+function drawChart(hasData = chartHasData) {
+  chartHasData = hasData;
+  const c = $("#chart"), dpr = devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+  if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
+  const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  g.strokeStyle = "#2a2b33"; g.lineWidth = 1;
+  for (let i = 0; i <= 12; i++) { const x = Math.round(i * w / 12) + .5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
+  for (let i = 0; i <= 4; i++) { const y = Math.round(i * (h - 1) / 4) + .5; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+  const max = Math.max(1024, ...samples.flat()) * 1.15;
+  $("#chartMax").textContent = hasData ? fmtRate(max) : "";
+  for (const [k, col] of [[0, "#2fd08f"], [1, "#f2546f"]]) {
+    if (samples.length < 2) break;
+    g.strokeStyle = col; g.lineWidth = 1.8; g.beginPath();
+    samples.forEach((s, i) => { const x = w - (samples.length - 1 - i) * w / 59, y = h - 2 - s[k] / max * (h - 6); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+    g.stroke();
+  }
+}
+addEventListener("resize", () => drawChart());
+
+// ---------- start ----------
+setTab(tab);
+loadTor(); loadProfiles();
+if (tab !== "cloud") api(`/api/cloud/${provider}`).then(i => { cloudInfo[provider] = i; }).catch(() => {});
+refresh(); setInterval(refresh, 1000);
+</script>
+</body>
+</html>

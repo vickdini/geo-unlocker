@@ -1,0 +1,52 @@
+[package]
+name = "geo-unlocker"
+description = "Geo Unlocker desktop app: Tor, VPN and self-hosted cloud VPN"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+geo-common = { path = "../common" }
+anyhow.workspace = true
+base64.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tiny_http.workspace = true
+ctrlc = { version = "3", features = ["termination"] }
+getrandom = "0.2"
+ureq = { version = "2", default-features = false, features = ["json", "tls", "socks-proxy"] }
+x25519-dalek = "2"
+# Whole-computer Tor: a TUN adapter whose traffic is forwarded to Tor's SOCKS port.
+# Built-in WireGuard (userspace).
+boringtun = { version = "0.7", default-features = false }
+tun2proxy = { version = "0.8.7", default-features = false }
+tun = { version = "0.8.14", features = ["async"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "io-util", "macros", "sync"] }
+# Native app window using the system web engine (WebView2 / WKWebView / WebKitGTK).
+wry = "0.57"
+tao = "0.37"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Networking_WinInet", "Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging"] }
+
+[build-dependencies]
+winresource = "0.1"
+
+# Linux package (cargo deb -p geo-unlocker). apt installs the dependencies automatically.
+[package.metadata.deb]
+name = "geo-unlocker"
+maintainer = "Geo Unlocker"
+section = "net"
+priority = "optional"
+extended-description = "Route this computer through Tor, a built-in WireGuard VPN or your own Azure VPN server, and manage the Geo Unlocker Raspberry Pi."
+depends = "$auto, tor, tor-geoipdb, libwebkit2gtk-4.1-0, libgtk-3-0, iptables, iproute2, pkexec | policykit-1"
+assets = [
+  ["target/release/geo-unlocker", "usr/bin/", "755"],
+  ["../../packaging/linux/geo-unlocker.desktop", "usr/share/applications/", "644"],
+  ["../../packaging/icons/geo-unlocker-256.png", "usr/share/icons/hicolor/256x256/apps/geo-unlocker.png", "644"],
+  ["static/NOTICE.md", "usr/share/doc/geo-unlocker/NOTICE.md", "644"],
+]

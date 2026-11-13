@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = ["crates/common", "crates/pi", "crates/desktop", "crates/update-sign"]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.90"
+
+[workspace.dependencies]
+anyhow = "1"
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tiny_http = "0.12"
+ed25519-dalek = "2"
+sha2 = "0.10"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

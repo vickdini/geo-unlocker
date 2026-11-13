@@ -1,0 +1,146 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write
+
+env:
+  VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '0.2.0' }}
+  # Built into the apps: where they look for updates.
+  GEO_UPDATE_REPO: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        shell: bash
+        run: echo "GEO_VERSION=${VERSION#v}" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Linux GUI libraries (WebKitGTK for the app window)
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev
+      - run: cargo test --workspace --lib
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        shell: bash
+        run: echo "GEO_VERSION=${VERSION#v}" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Tor Expert Bundle
+        run: python packaging/fetch_tor.py windows-x86_64 dist/windows/tor
+      - name: WebView2 bootstrapper (only used on PCs without WebView2)
+        shell: pwsh
+        run: Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile dist/windows/MicrosoftEdgeWebview2Setup.exe
+      - run: cargo build --release -p geo-unlocker
+      - name: Installer
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $v = "${{ env.VERSION }}".TrimStart("v")
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$v" packaging\windows\geo-unlocker.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/GeoUnlockerSetup-*.exe
+
+  macos:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - { target: aarch64-apple-darwin, tor: macos-aarch64 }
+          - { target: x86_64-apple-darwin,  tor: macos-x86_64 }
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        shell: bash
+        run: echo "GEO_VERSION=${VERSION#v}" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: bash packaging/macos/make-dmg.sh ${{ matrix.target }} ${{ matrix.tor }} "${VERSION#v}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.target }}
+          path: dist/GeoUnlocker-*.dmg
+
+  linux:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        shell: bash
+        run: echo "GEO_VERSION=${VERSION#v}" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Linux GUI libraries (WebKitGTK for the app window)
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev
+      - run: cargo install cargo-deb --locked
+      - run: cargo deb -p geo-unlocker --deb-version "${VERSION#v}" -o dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*.deb
+
+  pi:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - { target: aarch64-unknown-linux-musl,     arch: arm64 }  # Pi 3/4/5 with 64-bit OS
+          - { target: armv7-unknown-linux-musleabihf, arch: armhf }  # 32-bit Raspberry Pi OS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        shell: bash
+        run: echo "GEO_VERSION=${VERSION#v}" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cross --locked
+      - run: cross build --release -p geo-unlocker-pi --target ${{ matrix.target }}
+      - run: |
+          mkdir -p geo-unlocker-pi-${{ matrix.arch }}
+          cp target/${{ matrix.target }}/release/geo-unlocker-pi pi/install.sh pi/geo-unlocker.service geo-unlocker-pi-${{ matrix.arch }}/
+          tar czf geo-unlocker-pi-${{ matrix.arch }}.tar.gz geo-unlocker-pi-${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pi-${{ matrix.arch }}
+          path: geo-unlocker-pi-${{ matrix.arch }}.tar.gz
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos, linux, pi]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Sign the release (apps only install signed updates)
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          if [ -z "$UPDATE_SIGNING_KEY" ]; then echo "::error::Add the UPDATE_SIGNING_KEY repository secret"; exit 1; fi
+          test "$(cargo run -q -p update-sign -- public)" = "$(tr -d '[:space:]' < packaging/update-public-key.txt)"             || { echo "::error::UPDATE_SIGNING_KEY doesn't match packaging/update-public-key.txt"; exit 1; }
+          (cd dist && sha256sum -- * > SHA256SUMS.txt)
+          cargo run -q -p update-sign -- sign dist/SHA256SUMS.txt
+          cargo run -q -p update-sign -- verify dist packaging/update-public-key.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

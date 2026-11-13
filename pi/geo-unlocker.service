@@ -1,0 +1,13 @@
+[Unit]
+Description=Geo Unlocker - route selected LAN devices through a VPN
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/geo-unlocker-pi
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

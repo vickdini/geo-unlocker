@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Geo Unlocker
+Comment=Route this computer through Tor, a VPN or your own cloud VPN server
+Exec=geo-unlocker
+Icon=geo-unlocker
+Terminal=false
+Categories=Network;Security;
+Keywords=vpn;wireguard;tor;proxy;

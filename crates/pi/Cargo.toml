@@ -1,0 +1,16 @@
+[package]
+name = "geo-unlocker-pi"
+description = "Routes selected LAN devices through a VPN on a Raspberry Pi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+geo-common = { path = "../common" }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tiny_http.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
