@@ -234,6 +234,57 @@ impl Ctl {
         });
     }
 
+    /// Count WireGuard traffic through the cloud server (this computer every 5 s,
+    /// the Pi every 30 s) into the server's data estimate.
+    pub fn spawn_usage_meter(self: &Arc<Self>) {
+        let me = Arc::downgrade(self);
+        std::thread::spawn(move || {
+            // Last seen counters; when a counter goes down the tunnel restarted.
+            let (mut desk_last, mut pi_last): (Option<u64>, Option<u64>) = (None, None);
+            let mut tick = 0u64;
+            let mut pending = 0u64;
+            loop {
+                std::thread::sleep(Duration::from_secs(5));
+                tick += 1;
+                let Some(ctl) = me.upgrade() else { return };
+                let pid = crate::cloud::PROVIDER;
+                let Some(dep) = ctl.cloud.deployments(&ctl.state).remove(pid) else {
+                    desk_last = None;
+                    pi_last = None;
+                    continue;
+                };
+                // This computer.
+                let st = ctl.vpn.status();
+                let on_cloud = matches!(ctl.mode(), Mode::Cloud { .. }) && st["kind"].as_str() == Some("wireguard");
+                if on_cloud {
+                    let total = st["rx"].as_u64().unwrap_or(0) + st["tx"].as_u64().unwrap_or(0);
+                    pending += total.saturating_sub(desk_last.filter(|l| *l <= total).unwrap_or(0));
+                    desk_last = Some(total);
+                } else {
+                    desk_last = None;
+                }
+                // The Pi, if it routes through this server.
+                if tick.is_multiple_of(6) {
+                    let pi_profile = format!("cloud-{pid}-{}", dep.country);
+                    match pilink::status(&ctl.state) {
+                        Ok(s) if s["active"].as_str() == Some(pi_profile.as_str()) => {
+                            let t = &s["tunnel"];
+                            let total = t["rx"].as_u64().unwrap_or(0) + t["tx"].as_u64().unwrap_or(0);
+                            pending += total.saturating_sub(pi_last.filter(|l| *l <= total).unwrap_or(0));
+                            pi_last = Some(total);
+                        }
+                        _ => pi_last = None,
+                    }
+                }
+                // Save every 30 s (or right away for big amounts).
+                if pending > 0 && (tick.is_multiple_of(6) || pending > 100 << 20) {
+                    ctl.cloud.add_data(&ctl.state, pid, pending);
+                    pending = 0;
+                }
+            }
+        });
+    }
+
     pub fn shutdown(&self) {
         self.stop_all();
         self.state.set("mode", &Mode::Off);

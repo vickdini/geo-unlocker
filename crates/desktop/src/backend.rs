@@ -26,6 +26,7 @@ fn init() -> Result<Arc<Ctl>> {
     });
     crate::updater::Updater::spawn(&ctl);
     ctl.spawn_watchdog();
+    ctl.spawn_usage_meter();
     geo_common::log(format!("started (version {})", crate::updater::VERSION));
     Ok(ctl)
 }

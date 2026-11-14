@@ -37,7 +37,8 @@ fn main() -> anyhow::Result<()> {
             ("GET", "/vpn/profiles") => json!([{"name": "Proton-NL", "type": "wireguard", "auth": false}]),
             ("GET", "/cloud/azure") => json!({
                 "account": if cloud { json!("vick@example.com") } else { Value::Null },
-                "regions": {"us": "eastus", "gb": "uksouth", "de": "germanywestcentral"}, "cost_note": "", "deployment": null,
+                "regions": {"us": "eastus", "gb": "uksouth", "de": "germanywestcentral"}, "cost_note": "",
+                "deployment": if cloud { json!({"country": "us", "region": "eastus", "ip": "20.127.93.202", "created": now - 5 * 3600 - 1260, "data_bytes": 112_400_000_000u64}) } else { Value::Null },
                 "options": {"subscriptions": [{"id": "a", "name": "Azure subscription 1"}]},
                 "usd_per_hour": 0.0154,
                 "costs": {"vm_per_hour": 0.0104, "ip_per_hour": 0.005, "data_per_gb": 0.087, "data_free_gb": 100},

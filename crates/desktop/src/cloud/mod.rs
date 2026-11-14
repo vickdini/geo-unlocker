@@ -33,11 +33,15 @@ pub struct Deployment {
     pub created: u64,
     /// peer name ("desktop" / "pi") -> private key
     pub clients: BTreeMap<String, String>,
+    /// Estimated bytes sent out of Azure through this server (all WireGuard traffic
+    /// of this computer and the Pi, both directions), for the cost estimate.
+    #[serde(default)]
+    pub data_bytes: u64,
 }
 
 impl Deployment {
     pub fn public(&self) -> Value {
-        json!({ "country": self.country, "region": self.region, "ip": self.ip, "created": self.created })
+        json!({ "country": self.country, "region": self.region, "ip": self.ip, "created": self.created, "data_bytes": self.data_bytes })
     }
 }
 
@@ -123,11 +127,23 @@ impl CloudManager {
         let mut deps = self.deployments(state);
         deps.insert(pid.to_string(), Deployment {
             country: country.to_string(), region: region.to_string(), ip: ip.clone(), resources: res,
-            server_pub, created: geo_common::now(), clients,
+            server_pub, created: geo_common::now(), clients, data_bytes: 0,
         });
         state.set("cloud", &deps);
         log(&format!("Server ready at {ip} (WireGuard installs itself in ~1-2 min)"));
         Ok(())
+    }
+
+    /// Add traffic to a server's data estimate.
+    pub fn add_data(&self, state: &State, pid: &str, bytes: u64) {
+        if bytes == 0 {
+            return;
+        }
+        let mut deps = self.deployments(state);
+        if let Some(d) = deps.get_mut(pid) {
+            d.data_bytes = d.data_bytes.saturating_add(bytes);
+            state.set("cloud", &deps);
+        }
     }
 
     pub fn client_config(&self, state: &State, pid: &str, peer: &str) -> Result<String> {
