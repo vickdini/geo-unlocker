@@ -7,6 +7,10 @@ if (Get-Process geo-unlocker -ErrorAction SilentlyContinue) {
     Write-Host "Geo Unlocker is running. Quit it first (power icon, top right), then run this again." -ForegroundColor Yellow
     exit 1
 }
+# Show which code this is in the app's version label, e.g. "0.3.2-1-g3a3569b"
+# (1 commit after v0.3.2, at commit 3a3569b; "-dirty" = uncommitted changes).
+$env:GEO_VERSION = (git describe --tags --always --dirty).TrimStart("v")
+Write-Host "Building test version $env:GEO_VERSION"
 cargo build --profile fast -p geo-unlocker
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Start-Process "target\fast\geo-unlocker.exe"
