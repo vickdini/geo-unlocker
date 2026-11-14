@@ -187,7 +187,7 @@ impl WgTunnel {
                     }
                 };
                 let name = tun::AbstractDevice::tun_name(&*device).unwrap_or_default();
-                let udp = match tokio::net::UdpSocket::bind("0.0.0.0:0").await {
+                let udp = match udp_socket() {
                     Ok(u) => u,
                     Err(e) => {
                         let _ = tx.send(Err(e.into()));
@@ -226,6 +226,35 @@ fn rand_index() -> u32 {
 
 const BUF: usize = 65_536;
 
+/// UDP socket with large buffers, so bursts don't overflow Windows' small defaults
+/// (that caused "no buffer space available", os error 10055).
+fn udp_socket() -> std::io::Result<tokio::net::UdpSocket> {
+    use socket2::{Domain, Protocol, Socket, Type};
+    let s = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
+    let _ = s.set_send_buffer_size(4 << 20);
+    let _ = s.set_recv_buffer_size(4 << 20);
+    s.set_nonblocking(true)?;
+    s.bind(&SocketAddr::from(([0, 0, 0, 0], 0)).into())?;
+    tokio::net::UdpSocket::from_std(s.into())
+}
+
+/// Send one datagram. A failure (full queue, network change) only drops that packet:
+/// UDP is lossy by design and TCP inside the tunnel retransmits.
+async fn send(udp: &tokio::net::UdpSocket, p: &[u8], to: SocketAddr) {
+    if let Err(e) = udp.send_to(p, to).await {
+        note_error("send", &e);
+    }
+}
+
+/// Log transient errors at most once every 10 seconds.
+fn note_error(what: &str, e: &std::io::Error) {
+    static LAST: AtomicU64 = AtomicU64::new(0);
+    let now = geo_common::now();
+    if now.saturating_sub(LAST.swap(now, Ordering::Relaxed)) >= 10 {
+        geo_common::log(format!("WireGuard: {what} error (packet dropped, tunnel keeps running): {e}"));
+    }
+}
+
 /// Shuttle packets: adapter -> encrypt -> UDP, UDP -> decrypt -> adapter, plus timers.
 async fn run_tunnel(
     device: tun::AsyncDevice,
@@ -246,7 +275,7 @@ async fn run_tunnel(
         }
     };
     if let Some(p) = init {
-        udp.send_to(&p, endpoint).await?;
+        send(&udp, &p, endpoint).await;
     }
 
     // Adapter -> network.
@@ -264,7 +293,7 @@ async fn run_tunnel(
                     _ => None,
                 };
                 if let Some(p) = pkt {
-                    udp.send_to(&p, endpoint).await?;
+                    send(&udp, &p, endpoint).await;
                 }
             }
         }
@@ -276,7 +305,16 @@ async fn run_tunnel(
         async move {
             let (mut buf, mut out) = (vec![0u8; BUF], vec![0u8; BUF]);
             loop {
-                let (n, from) = udp.recv_from(&mut buf).await?;
+                // Windows reports ICMP "port unreachable" as a receive error on UDP
+                // sockets (e.g. while the server is still booting); keep listening.
+                let (n, from) = match udp.recv_from(&mut buf).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        note_error("receive", &e);
+                        tokio::time::sleep(Duration::from_millis(50)).await;
+                        continue;
+                    }
+                };
                 if from != endpoint {
                     continue;
                 }
@@ -297,10 +335,12 @@ async fn run_tunnel(
                     }
                 }
                 for r in replies {
-                    udp.send_to(&r, endpoint).await?;
+                    send(&udp, &r, endpoint).await;
                 }
                 if let Some(p) = to_tun {
-                    tun_wr.write_all(&p).await?;
+                    if let Err(e) = tun_wr.write_all(&p).await {
+                        note_error("adapter write", &e);
+                    }
                 }
             }
         }
@@ -326,7 +366,7 @@ async fn run_tunnel(
                     }
                 };
                 if let Some(p) = pkt {
-                    udp.send_to(&p, endpoint).await?;
+                    send(&udp, &p, endpoint).await;
                 }
             }
             #[allow(unreachable_code)]

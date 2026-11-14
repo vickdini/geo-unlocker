@@ -202,6 +202,38 @@ impl Ctl {
         Ok(view)
     }
 
+    /// Watch the active connection; if its tunnel dies unexpectedly (crash, adapter
+    /// removed, tor exited), reconnect instead of silently leaving the computer on
+    /// its normal connection while the window says "Connecting…".
+    pub fn spawn_watchdog(self: &Arc<Self>) {
+        let me = Arc::downgrade(self);
+        std::thread::spawn(move || {
+            let mut next_try = 0u64;
+            loop {
+                std::thread::sleep(Duration::from_secs(5));
+                let Some(ctl) = me.upgrade() else { return };
+                // Only for connections that were up (connected_at set) and not mid-switch.
+                if ctl.jobs.busy() || ctl.connected_at.load(Ordering::SeqCst) == 0 {
+                    continue;
+                }
+                let mode = ctl.mode();
+                let alive = match &mode {
+                    Mode::Off => true,
+                    Mode::Vpn { .. } | Mode::Cloud { .. } => ctl.vpn.running(),
+                    Mode::Tor { system: true, .. } => ctl.tor.running() && ctl.systun.running(),
+                    Mode::Tor { system: false, .. } => ctl.tor.running(),
+                };
+                let now = geo_common::now();
+                if alive || now < next_try {
+                    continue;
+                }
+                geo_common::log("connection lost: reconnecting");
+                next_try = now + 30; // don't hammer if reconnecting keeps failing
+                let _ = ctl.set_mode(mode);
+            }
+        });
+    }
+
     pub fn shutdown(&self) {
         self.stop_all();
         self.state.set("mode", &Mode::Off);

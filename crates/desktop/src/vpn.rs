@@ -52,6 +52,11 @@ impl DesktopVpn {
         *self.label.lock().unwrap() = None;
     }
 
+    /// Is the WireGuard tunnel up (its adapter and packet loop alive)?
+    pub fn running(&self) -> bool {
+        self.tunnel.running()
+    }
+
     pub fn status(&self) -> Value {
         if !self.tunnel.running() {
             return json!({ "kind": null });

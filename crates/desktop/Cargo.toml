@@ -21,6 +21,7 @@ x25519-dalek = "2"
 boringtun = { version = "0.7", default-features = false }
 tun2proxy = { version = "0.8.7", default-features = false }
 tun = { version = "0.8.14", features = ["async"] }
+socket2 = "0.6"
 tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "io-util", "macros", "sync"] }
 # Native app window (pure Rust GUI) and native file dialog.
 iced = { version = "0.14", features = ["canvas", "svg", "tokio"] }

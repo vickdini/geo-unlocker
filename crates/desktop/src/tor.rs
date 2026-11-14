@@ -241,7 +241,7 @@ impl TorClient {
         Ok(ips)
     }
 
-    fn running(&self) -> bool {
+    pub fn running(&self) -> bool {
         self.proc_.lock().unwrap().as_mut().is_some_and(|p| matches!(p.try_wait(), Ok(None)))
     }
 

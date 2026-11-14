@@ -25,6 +25,7 @@ fn init() -> Result<Arc<Ctl>> {
         std::process::exit(0);
     });
     crate::updater::Updater::spawn(&ctl);
+    ctl.spawn_watchdog();
     geo_common::log(format!("started (version {})", crate::updater::VERSION));
     Ok(ctl)
 }
