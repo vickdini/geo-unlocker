@@ -483,7 +483,13 @@ fn cloud_panel(app: &App) -> El<'_> {
             row![
                 flag(&cc, 30.0),
                 column![text(country_name(&cc)).size(15).font(BOLD), muted(if deleting { "Deleting your server…" } else { "Your Azure server" })].width(Length::Fill),
-                if active { connected_pill() } else { Space::new().into() }
+                if active && app.conn().state == "on" {
+                    connected_pill()
+                } else if active {
+                    container(text("CONNECTING…").size(10).font(BOLD)).padding([2, 7]).style(style::pill(WARN)).into()
+                } else {
+                    Space::new().into()
+                }
             ]
                 .spacing(10)
                 .align_y(Alignment::Center),
@@ -492,7 +498,7 @@ fn cloud_panel(app: &App) -> El<'_> {
             row![muted("Running for").width(90), t(fmt_dur(age)).size(13)],
             cost_estimate(c, d, age),
             row![
-                button(row![svg(icons::power()).width(14).height(14), t("Connect").size(13)].spacing(6)).padding([7, 10]).style(style::btn(Btn::Primary)).on_press_maybe((!deleting).then_some(Message::CloudConnect)),
+                button(row![svg(icons::power()).width(14).height(14), t(if active { "Connected" } else { "Connect" }).size(13)].spacing(6)).padding([7, 10]).style(style::btn(Btn::Primary)).on_press_maybe((!deleting && !active).then_some(Message::CloudConnect)),
                 button(row![svg(icons::send()).width(14).height(14), t("Use on the Pi").size(13)].spacing(6)).padding([7, 10]).style(style::btn(Btn::Ghost)).on_press_maybe((pi && !deleting).then_some(Message::CloudToPi)),
                 button(row![svg(icons::trash()).width(14).height(14), t("Delete").size(13)].spacing(6)).padding([7, 10]).style(style::btn(Btn::Danger)).on_press_maybe((!deleting && !job_running).then_some(Message::Ask(Pending::Destroy))),
             ]
@@ -572,11 +578,19 @@ fn stage(app: &App) -> El<'_> {
                 app.exit.as_ref().filter(|e| !e.city.is_empty()).map(|e| format!("{}, {}", e.city, country_name(&e.country))).unwrap_or_else(|| country_name(&v.cc))
             ),
         ),
-        "wait" => (
-            "CONNECTING…",
-            WARN,
-            app.status["job"]["lines"].as_array().and_then(|l| l.last()).and_then(Value::as_str).unwrap_or("Setting up the connection…").to_string(),
-        ),
+        "wait" => ("CONNECTING…", WARN, {
+            let job = &app.status["job"];
+            if job["running"].as_bool() == Some(true) {
+                job["lines"].as_array().and_then(|l| l.last()).and_then(Value::as_str).unwrap_or("Setting up the connection…").to_string()
+            } else {
+                match app.status["mode"]["kind"].as_str() {
+                    Some("cloud") => "Waiting for your server to start (a new server needs about 2 minutes)".to_string(),
+                    Some("vpn") => "Waiting for the VPN server to answer…".to_string(),
+                    Some("tor") => "Connecting to the Tor network…".to_string(),
+                    _ => "Setting up the connection…".to_string(),
+                }
+            }
+        }),
         _ => ("UNPROTECTED", BAD, "Your traffic uses your normal connection".to_string()),
     };
     let badge = container(
