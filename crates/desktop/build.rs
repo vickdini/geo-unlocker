@@ -35,6 +35,11 @@ fn main() {
             .set("ProductName", "Geo Unlocker")
             .set("FileDescription", "Geo Unlocker")
             .set("CompanyName", "Geo Unlocker");
+        // Release builds get their version from the git tag (GEO_VERSION).
+        println!("cargo:rerun-if-env-changed=GEO_VERSION");
+        if let Ok(v) = std::env::var("GEO_VERSION") {
+            res.set("FileVersion", &v).set("ProductVersion", &v);
+        }
         // Only the app binary (not test binaries, which must run without elevation).
         res.compile_for("geo-unlocker").expect("embedding Windows resources (needs the Windows SDK's rc.exe)");
     }

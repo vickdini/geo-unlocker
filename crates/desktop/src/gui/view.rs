@@ -82,6 +82,20 @@ pub fn view(app: &App) -> El<'_> {
         .style(style::panel(style::BG, 0.0, None))
         .into();
     }
+    let upd = &app.status["update"];
+    if matches!(upd["state"].as_str(), Some("installing") | Some("restart")) {
+        return center(
+            column![
+                svg(icons::logo()).width(56).height(56),
+                text(format!("Updating Geo Unlocker to {}", s(upd, "latest"))).size(18).font(BOLD),
+                text("It will reopen in a moment.").color(MUTED),
+            ]
+            .spacing(10)
+            .align_x(Alignment::Center),
+        )
+        .style(style::panel(style::BG, 0.0, None))
+        .into();
+    }
     if let Some(w) = &app.waiting {
         return center(
             column![svg(icons::logo()).width(56).height(56), text("Geo Unlocker").size(18).font(BOLD), text(w.clone()).color(MUTED).center()]

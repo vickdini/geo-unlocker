@@ -195,6 +195,8 @@ impl Updater {
         let file = self.ready.lock().unwrap().clone().context("no update has been downloaded yet")?;
         self.set(|s| s.state = "installing");
         geo_common::log(format!("installing update from {}", file.display()));
+        // Give the window time to show "Updating…" before the app closes.
+        std::thread::sleep(std::time::Duration::from_secs(3));
         ctl.shutdown();
         install_file(&file)?;
         // Windows: the installer replaces the app and starts it again; we exit now.

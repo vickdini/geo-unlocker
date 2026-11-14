@@ -154,6 +154,8 @@ pub struct App {
     pub volume: Option<(u64, u64)>,
     pub samples: VecDeque<(f32, f32)>,
     restart_requested: bool,
+    /// Whether a background job was running at the last status update.
+    job_was_running: bool,
     /// What was copied last and when (for the "Copied" confirmation).
     pub copied: Option<(String, Instant)>,
     /// Technical details (GET /advanced), refreshed while the panel is open.
@@ -286,6 +288,7 @@ impl App {
             volume: None,
             samples: VecDeque::new(),
             restart_requested: false,
+            job_was_running: false,
             copied: None,
             advanced: Value::Null,
             ticks: 0,
@@ -420,6 +423,13 @@ impl App {
                 }
             }
         }
+        // When a job (create/delete server, connect) finishes, refresh the lists so the
+        // Cloud tab doesn't keep showing a server that was just deleted.
+        let job_running = self.status["job"]["running"].as_bool() == Some(true);
+        if self.job_was_running && !job_running {
+            tasks.push(self.refresh_lists());
+        }
+        self.job_was_running = job_running;
         // Traffic statistics.
         let now = Instant::now();
         let since = self.status["connected_at"].as_u64().unwrap_or(0);
