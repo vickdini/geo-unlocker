@@ -1549,7 +1549,7 @@ dependencies = [
 
 [[package]]
 name = "geo-common"
-version = "0.2.0"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "base64",
@@ -1562,7 +1562,7 @@ dependencies = [
 
 [[package]]
 name = "geo-unlocker"
-version = "0.2.0"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "base64",
@@ -1589,7 +1589,7 @@ dependencies = [
 
 [[package]]
 name = "geo-unlocker-pi"
-version = "0.2.0"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "geo-common",
@@ -4872,7 +4872,7 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
 name = "update-sign"
-version = "0.2.0"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "base64",
