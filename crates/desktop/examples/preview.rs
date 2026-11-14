@@ -1,5 +1,5 @@
 //! Open the app window with sample data (no admin rights, no network changes).
-//!   cargo run -p geo-unlocker --example preview -- [connected|off|signin]
+//!   cargo run -p geo-unlocker --example preview -- [connected|off|signin|cloud]
 
 use geo_unlocker::gui::{run_preview, Backend};
 use serde_json::{json, Value};
@@ -8,7 +8,8 @@ use std::sync::Arc;
 
 fn main() -> anyhow::Result<()> {
     let arg = std::env::args().nth(1).unwrap_or_default();
-    let connected = arg != "off" && arg != "signin";
+    let connected = !matches!(arg.as_str(), "off" | "signin" | "cloud");
+    let cloud = arg == "cloud";
     let signin = arg == "signin";
     let rx = Arc::new(AtomicU64::new(2_200_000));
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs();
@@ -35,7 +36,11 @@ fn main() -> anyhow::Result<()> {
             ]),
             ("GET", "/vpn/profiles") => json!([{"name": "Proton-NL", "type": "wireguard", "auth": false}]),
             ("GET", "/cloud/azure") => json!({
-                "account": null, "regions": {"us": "eastus"}, "cost_note": "", "deployment": null,
+                "account": if cloud { json!("vick@example.com") } else { Value::Null },
+                "regions": {"us": "eastus", "gb": "uksouth", "de": "germanywestcentral"}, "cost_note": "", "deployment": null,
+                "options": {"subscriptions": [{"id": "a", "name": "Azure subscription 1"}]},
+                "usd_per_hour": 0.0154,
+                "costs": {"vm_per_hour": 0.0104, "ip_per_hour": 0.005, "data_per_gb": 0.087, "data_free_gb": 100},
                 "login": if signin { json!({"url": "https://microsoft.com/devicelogin", "device_code": "FJ3K8QLM2", "done": false, "ok": false}) } else { Value::Null },
             }),
             ("GET", "/advanced") => json!({

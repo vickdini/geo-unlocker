@@ -501,7 +501,7 @@ fn cloud_panel(app: &App) -> El<'_> {
             col = col.push(list_row(flag(&cc, 22.0), name, region, false, vec![connect_btn(Message::Ask(Pending::Deploy(cc.clone())), false)]));
         }
     }
-    col.push(note(muted(format!("💲 {} Note: big streaming services block many cloud (data-centre) addresses, so a server may not unlock every service.", s(c, "cost_note"))).into(), false)).into()
+    col.push(cost_table(&c["costs"])).into()
 }
 
 // ---------------------------------------------------------------- map stage
@@ -873,5 +873,42 @@ fn advanced_drawer(app: &App) -> El<'_> {
         mono_block(app, "App log", "The last 150 lines; the full log is geo-unlocker.log in the data folder.", log),
     ]
     .spacing(16)
+    .into()
+}
+
+/// Azure prices as a small table.
+fn cost_table<'a>(k: &Value) -> El<'a> {
+    let f = |key: &str| k[key].as_f64().unwrap_or(0.0);
+    let (vm, ip, gb) = (f("vm_per_hour"), f("ip_per_hour"), f("data_per_gb"));
+    let free = k["data_free_gb"].as_u64().unwrap_or(0);
+    let cell = |s: String, w: f32, bold: bool, c: Color| {
+        container(text(s).size(12).font(if bold { BOLD } else { iced::Font::DEFAULT }).color(c)).width(Length::FillPortion((w * 10.0) as u16))
+    };
+    let line = |a: &str, b: String, c: String, bold: bool| {
+        row![cell(a.to_string(), 3.8, bold, TEXT), cell(b, 4.0, bold, TEXT), cell(c, 3.6, false, MUTED)].spacing(8).padding([5, 0])
+    };
+    let rule = || container(Space::new().height(1)).width(Length::Fill).style(style::panel(LINE, 0.0, None));
+    let table = column![
+        row![cell("Cost".into(), 3.8, true, MUTED), cell("Price".into(), 4.0, true, MUTED), cell("Charged".into(), 3.6, true, MUTED)].spacing(8).padding(Padding { top: 0.0, right: 0.0, bottom: 4.0, left: 0.0 }),
+        rule(),
+        line("Virtual machine (B1s)", format!("US${vm:.3} / hour"), "while the server exists".into(), false),
+        line("Public IP address", format!("US${ip:.3} / hour"), "while the server exists".into(), false),
+        rule(),
+        line("Total", format!("≈ US${:.3} / hour", vm + ip), String::new(), true),
+        rule(),
+        line("Data downloaded", format!("US${gb:.3} / GB"), format!("after the first {free} GB each month"), false),
+    ];
+    container(
+        column![
+            text("💲 You pay only for what you use").size(13).font(SEMIBOLD),
+            table,
+            muted("Prices for US East; other regions differ slightly. HD video uses about 3 GB per hour. Delete the server to stop all charges."),
+            muted("Big streaming services block many cloud (data-centre) addresses, so a server may not unlock every service.").color(FAINT),
+        ]
+        .spacing(8),
+    )
+    .padding([12, 12])
+    .width(Length::Fill)
+    .style(style::panel(CARD, 10.0, Some(LINE)))
     .into()
 }

@@ -16,7 +16,7 @@ const CLIENT_ID: &str = "04b07795-8ddb-461a-bbee-02f9e1bf7b46";
 const LOGIN: &str = "https://login.microsoftonline.com";
 const ARM: &str = "https://management.azure.com";
 const SCOPE: &str = "https://management.azure.com/.default offline_access";
-const VM_SIZE: &str = "Standard_B1s"; // 750 free hours/month for 12 months on new accounts
+const VM_SIZE: &str = "Standard_B1s";
 
 pub const REGIONS: &[(&str, &str)] = &[
     ("us", "eastus"), ("ca", "canadacentral"), ("br", "brazilsouth"), ("mx", "mexicocentral"),
@@ -32,7 +32,12 @@ pub const REGIONS: &[(&str, &str)] = &[
 pub const VM_USD_PER_HOUR: f64 = 0.0104; // Standard_B1s, Linux
 pub const IP_USD_PER_HOUR: f64 = 0.005; // Standard static public IPv4
 
-pub const COST_NOTE: &str = "You pay only while the server exists: VM ≈ US$0.010/hour + public IP ≈ US$0.005/hour                              (≈ US$0.015/hour together; new Azure accounts get 750 free VM hours a month for 12 months).                              Data out ≈ US$0.087/GB after 100 GB/month free (HD video ≈ 3 GB/hour). Delete the server to stop all charges.";
+/// Data downloaded through the server (Azure "data out"), after the monthly free allowance.
+pub const DATA_USD_PER_GB: f64 = 0.087;
+pub const DATA_FREE_GB: u32 = 100;
+
+/// One-line price summary (used in the "Create a server?" dialog).
+pub const COST_NOTE: &str = "About US$0.015 per hour while the server exists (VM + public IP), plus US$0.087 per GB downloaded after the first 100 GB each month. Delete the server to stop all charges.";
 
 /// What we keep after sign-in (in the app's admin-only state file).
 #[derive(Serialize, Deserialize, Clone, Default)]

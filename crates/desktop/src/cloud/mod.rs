@@ -5,7 +5,7 @@ pub mod azure;
 pub mod base;
 
 use anyhow::{bail, Context, Result};
-use azure::{Azure, COST_NOTE, IP_USD_PER_HOUR, REGIONS, VM_USD_PER_HOUR};
+use azure::{Azure, COST_NOTE, DATA_FREE_GB, DATA_USD_PER_GB, IP_USD_PER_HOUR, REGIONS, VM_USD_PER_HOUR};
 use base::{client_conf, server_bootstrap, wg_keypair, PEERS};
 use geo_common::state::State;
 use serde::{Deserialize, Serialize};
@@ -72,6 +72,10 @@ impl CloudManager {
         Ok(json!({
             "id": PROVIDER, "name": "Azure", "installed": true, "cost_note": COST_NOTE,
             "usd_per_hour": VM_USD_PER_HOUR + IP_USD_PER_HOUR,
+            "costs": {
+                "vm_per_hour": VM_USD_PER_HOUR, "ip_per_hour": IP_USD_PER_HOUR,
+                "data_per_gb": DATA_USD_PER_GB, "data_free_gb": DATA_FREE_GB,
+            },
             "regions": regions, "account": account, "options": options,
             "deployment": self.deployments(state).get(pid).map(Deployment::public),
             "login": self.azure.login_view(),
