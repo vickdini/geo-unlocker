@@ -31,6 +31,7 @@ icon!(minus, r#"<path d="M5 12h14"/>"#);
 icon!(close, r#"<path d="M6 6l12 12M18 6 6 18"/>"#);
 icon!(globe, r#"<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/>"#);
 icon!(lock, r#"<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>"#);
+icon!(code, r#"<path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>"#);
 icon!(quit, r#"<path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/>"#);
 
 pub fn logo() -> Handle {

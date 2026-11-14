@@ -98,6 +98,7 @@ pub fn view(app: &App) -> El<'_> {
         layers.push(match o {
             Overlay::Pi => drawer("Raspberry Pi", pi_drawer(app)),
             Overlay::Updates => drawer("About & updates", updates_drawer(app)),
+            Overlay::Advanced => drawer_w("Technical details", advanced_drawer(app), 720.0),
             Overlay::AddProfile => dialog(add_profile(app)),
             Overlay::Confirm { title, body, ok, danger, .. } => dialog(
                 column![
@@ -122,6 +123,10 @@ pub fn view(app: &App) -> El<'_> {
 }
 
 fn drawer<'a>(title: &'a str, body: El<'a>) -> El<'a> {
+    drawer_w(title, body, 390.0)
+}
+
+fn drawer_w<'a>(title: &'a str, body: El<'a>, width: f32) -> El<'a> {
     row![
         space::horizontal(),
         opaque(
@@ -129,11 +134,11 @@ fn drawer<'a>(title: &'a str, body: El<'a>) -> El<'a> {
                 column![
                     row![text(title).size(17).font(BOLD), space::horizontal(), icon_btn(icons::close(), Message::CloseOverlay, "Close")]
                         .align_y(Alignment::Center),
-                    scrollable(body).height(Length::Fill)
+                    scrollable(container(body).padding(Padding { top: 0.0, right: 16.0, bottom: 0.0, left: 0.0 })).height(Length::Fill)
                 ]
                 .spacing(10)
             )
-            .width(390)
+            .width(width)
             .height(Length::Fill)
             .padding(18)
             .style(style::floating)
@@ -177,6 +182,10 @@ fn topbar(app: &App) -> El<'_> {
                 .padding([6, 12])
                 .style(style::btn(Btn::Chip))
                 .on_press(Message::OpenPi),
+            button(row![svg(icons::code()).width(15).height(15), t("Details").size(13)].spacing(6).align_y(Alignment::Center))
+                .padding([6, 12])
+                .style(style::btn(Btn::Chip))
+                .on_press(Message::OpenAdvanced),
             icon_btn(icons::quit(), Message::Ask(Pending::Quit), "Disconnect and quit"),
         ]
         .spacing(12)
@@ -748,4 +757,121 @@ fn updates_drawer(app: &App) -> El<'_> {
         .push(muted("Third-party components: Tor, Wintun, boringtun, tun2proxy, iced, Natural Earth, flag-icons. See NOTICE.md in the install folder.").color(FAINT));
     let _ = (RAISE, Point::ORIGIN);
     col.into()
+}
+
+// ---------------------------------------------------------------- technical details
+fn mono_block<'a>(app: &App, title: &str, subtitle: &str, body: String) -> El<'a> {
+    let just_copied = app.copied.as_ref().is_some_and(|(c, at)| *c == body && at.elapsed().as_secs() < 3);
+    let mut head = row![text(title.to_string()).size(14).font(BOLD), space::horizontal()].align_y(Alignment::Center);
+    if !body.is_empty() {
+        head = head.push(
+            button(t(if just_copied { "✔ Copied" } else { "Copy" }).size(12))
+                .padding([4, 10])
+                .style(style::btn(Btn::Ghost))
+                .on_press(Message::Copy(body.clone())),
+        );
+    }
+    let mut col = column![head].spacing(6);
+    if !subtitle.is_empty() {
+        col = col.push(muted(subtitle.to_string()));
+    }
+    col = col.push(
+        container(text(if body.is_empty() { "—".to_string() } else { body }).size(12).font(iced::Font::MONOSPACE))
+            .width(Length::Fill)
+            .padding([10, 12])
+            .style(style::panel(style::BG, 9.0, Some(LINE))),
+    );
+    col.into()
+}
+
+fn json_pretty(v: &Value) -> String {
+    if v.is_null() {
+        String::new()
+    } else {
+        serde_json::to_string_pretty(v).unwrap_or_default()
+    }
+}
+
+fn advanced_drawer(app: &App) -> El<'_> {
+    let a = &app.advanced;
+    if a.is_null() {
+        return muted("Loading…").into();
+    }
+    if let Some(e) = a["error"].as_str() {
+        return note(text(format!("✖ {e}")).size(13).color(BAD).into(), true);
+    }
+    // Connection summary
+    let m = &a["mode"];
+    let tun = &a["tunnel"];
+    let tor = &a["tor"];
+    let mut conn = vec![format!("mode:            {}", describe_mode(m))];
+    match m["kind"].as_str() {
+        Some("vpn") | Some("cloud") => {
+            conn.push(format!("tunnel:          {}", if tun["kind"].is_null() { "not running".into() } else { format!("WireGuard (built in), profile {}", s(tun, "label")) }));
+            conn.push(format!(
+                "last handshake:  {}",
+                tun["handshake_age"].as_u64().map(|x| format!("{x} s ago")).unwrap_or_else(|| "none yet".into())
+            ));
+            conn.push(format!("received / sent: {} / {}", fmt_bytes(tun["rx"].as_u64().unwrap_or(0)), fmt_bytes(tun["tx"].as_u64().unwrap_or(0))));
+        }
+        Some("tor") => {
+            conn.push(format!("tor:             {} (bootstrap {}%)", if tor["running"].as_bool() == Some(true) { "running" } else { "stopped" }, tor["bootstrap"].as_u64().unwrap_or(0)));
+            conn.push(format!("socks proxy:     {}", s(tor, "socks")));
+            if m["system"].as_bool() != Some(false) {
+                conn.push(format!("tor adapter:     {}", if a["tor_tunnel"].as_bool() == Some(true) { "up" } else { "down" }));
+            }
+        }
+        _ => conn.push("tunnel:          none (normal connection)".into()),
+    }
+    conn.push(format!("data folder:     {}", s(a, "data_folder")));
+    let changes = json_pretty(&a["network_changes"]);
+    if !changes.is_empty() {
+        conn.push(String::new());
+        conn.push("network changes in effect (undone on disconnect):".into());
+        conn.push(changes);
+    }
+
+    let cloud = &a["cloud"];
+    let calls: Vec<String> = cloud["api_calls"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|c| {
+            let mut line = format!("{} {} {}\n   → {}", s(c, "time"), s(c, "method"), s(c, "url"), s(c, "status"));
+            if !c["body"].is_null() {
+                let body = json_pretty(&c["body"]);
+                let lines: Vec<&str> = body.lines().collect();
+                let shown = lines.iter().take(40).map(|l| format!("   {l}")).collect::<Vec<_>>().join("\n");
+                line = format!("{line}\n{shown}{}", if lines.len() > 40 { "\n   …" } else { "" });
+            }
+            line
+        })
+        .collect();
+    let server = &cloud["server"];
+    let server_note = if server.is_null() {
+        "Template: the values in <angle brackets> are filled in when you create a server.".to_string()
+    } else {
+        format!("Your server in {} ({}). Azure runs this once, at first boot (custom data). The server's private key is hidden.", s(server, "region"), s(server, "ip"))
+    };
+    let tor_out = a["tor_output"].as_array().into_iter().flatten().filter_map(Value::as_str).collect::<Vec<_>>().join("\n");
+    let log = a["log"].as_array().into_iter().flatten().filter_map(Value::as_str).collect::<Vec<_>>();
+    let log = log[log.len().saturating_sub(150)..].join("\n");
+
+    column![
+        muted("For advanced users. Private keys and passwords are shown as <hidden>. Times are UTC. Updates every 2 seconds."),
+        mono_block(app, "Connection", "", conn.join("\n")),
+        mono_block(app, "WireGuard configuration", "The profile used by the current VPN or cloud connection.", s(a, "wireguard_config")),
+        mono_block(app, "Cloud server setup script", &server_note, s(cloud, "setup_script")),
+        mono_block(
+            app,
+            "Azure API calls",
+            "Every request that created or deleted your server (Azure Resource Manager REST API), newest last. Status polling is omitted.",
+            calls.join("\n\n")
+        ),
+        mono_block(app, "Deleting the server", "", s(cloud, "delete")),
+        mono_block(app, "Tor output", "", tor_out),
+        mono_block(app, "App log", "The last 150 lines; the full log is geo-unlocker.log in the data folder.", log),
+    ]
+    .spacing(16)
+    .into()
 }

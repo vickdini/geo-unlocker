@@ -31,6 +31,27 @@ pub fn dispatch(ctl: &Arc<Ctl>, method: &str, path: &str, b: &Value) -> Result<V
             json!({ "ok": true })
         }
 
+        ("GET", ["advanced"]) => {
+            let mode = ctl.mode();
+            let profile = match &mode {
+                Mode::Vpn { name } => ctl.profiles.get(name).ok().map(|(t, _, _)| geo_common::redact(&t)),
+                Mode::Cloud { provider } => ctl.cloud.client_config(&ctl.state, provider, "desktop").ok().map(|c| geo_common::redact(&c)),
+                _ => None,
+            };
+            json!({
+                "mode": mode,
+                "tunnel": ctl.vpn.status(),
+                "tor": ctl.tor.status(),
+                "tor_tunnel": ctl.systun.running(),
+                "network_changes": ctl.state.get::<Value>("tun_saved"),
+                "wireguard_config": profile,
+                "tor_output": ctl.tor.output(),
+                "cloud": ctl.cloud.details(&ctl.state, "azure"),
+                "log": geo_common::recent_log(),
+                "data_folder": ctl.dir.display().to_string(),
+            })
+        }
+
         // ---- Tor ----
         ("GET", ["tor", "countries"]) => serde_json::to_value(ctl.tor.exit_countries()?)?,
 

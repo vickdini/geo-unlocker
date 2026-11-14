@@ -38,6 +38,39 @@ fn main() -> anyhow::Result<()> {
                 "account": null, "regions": {"us": "eastus"}, "cost_note": "", "deployment": null,
                 "login": if signin { json!({"url": "https://microsoft.com/devicelogin", "device_code": "FJ3K8QLM2", "done": false, "ok": false}) } else { Value::Null },
             }),
+            ("GET", "/advanced") => json!({
+                "mode": {"kind": "cloud", "provider": "azure"},
+                "tunnel": {"kind": "wireguard", "label": "cloud:azure", "handshake_age": 14, "rx": r, "tx": r / 9},
+                "tor": {"running": false, "bootstrap": 0, "socks": "127.0.0.1:9155"}, "tor_tunnel": false,
+                "network_changes": {"os": "windows", "bypass": ["20.127.93.202"]},
+                "wireguard_config": "[Interface]
+PrivateKey = <hidden>
+Address = 10.66.66.2/32
+DNS = 1.1.1.1
+
+[Peer]
+PublicKey = 7c3Hk2Qe1m+VtLx0f4m9zYb0sDqgk8x8mPq3W2rUk1E=
+Endpoint = 20.127.93.202:51820
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25",
+                "cloud": {
+                    "server": {"region": "eastus", "ip": "20.127.93.202"},
+                    "setup_script": "#!/bin/bash
+set -e
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y wireguard iptables
+...",
+                    "delete": "Delete removes the whole resource group (VM, disk, network, public IP) with one API call: DELETE /subscriptions/<subscription>/resourceGroups/<group>",
+                    "api_calls": [
+                        {"time": "09:41:03", "method": "PUT", "url": "/subscriptions/1234/resourceGroups/geo-unlocker-12a2f3?api-version=2021-04-01", "status": "201", "body": {"location": "eastus"}},
+                        {"time": "09:41:06", "method": "PUT", "url": "/subscriptions/1234/resourceGroups/geo-unlocker-12a2f3/providers/Microsoft.Network/networkSecurityGroups/gu-nsg?api-version=2023-09-01", "status": "201", "body": {"location": "eastus", "properties": {"securityRules": [{"name": "wireguard"}]}}}
+                    ]
+                },
+                "tor_output": [],
+                "log": ["09:41:03 [Creating your server (US)] Creating resource group geo-unlocker-12a2f3 in eastus", "09:42:16 [Creating your server (US)] Routing all traffic through WireGuard (GeoUnlockerVPN)", "09:42:30 [Creating your server (US)] Done"],
+                "data_folder": r"C:\ProgramData\GeoUnlocker"
+            }),
             ("GET", "/ip") if connected => json!({"ip": "185.220.101.4", "city": "Amsterdam", "country": "NL", "loc": "52.37,4.89"}),
             ("GET", "/ip") => json!({"ip": "93.41.12.7", "city": "Milan", "country": "IT", "loc": "45.46,9.19"}),
             _ => json!({}),

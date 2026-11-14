@@ -241,6 +241,11 @@ impl TorClient {
         Ok(ips)
     }
 
+    /// tor's recent output lines.
+    pub fn output(&self) -> Vec<String> {
+        self.log.lock().unwrap().iter().cloned().collect()
+    }
+
     pub fn running(&self) -> bool {
         self.proc_.lock().unwrap().as_mut().is_some_and(|p| matches!(p.try_wait(), Ok(None)))
     }

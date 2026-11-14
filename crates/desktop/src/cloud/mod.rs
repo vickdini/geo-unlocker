@@ -15,6 +15,14 @@ use std::sync::Arc;
 
 pub const PROVIDER: &str = "azure";
 
+/// WireGuard public key (base64) for a private key (base64).
+fn public_key_of(private_b64: &str) -> Option<String> {
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD;
+    let k: [u8; 32] = b64.decode(private_b64).ok()?.try_into().ok()?;
+    Some(b64.encode(x25519_dalek::x25519(k, x25519_dalek::X25519_BASEPOINT_BYTES)))
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Deployment {
     pub country: String,
@@ -123,6 +131,28 @@ impl CloudManager {
         let address = PEERS.iter().find(|(n, _)| *n == peer).map(|x| x.1).context("unknown peer")?;
         let key = d.clients.get(peer).context("missing key")?;
         Ok(client_conf(key, address, &d.server_pub, &d.ip))
+    }
+
+/// Technical details for the current server: setup script, client config, API calls.
+    pub fn details(&self, state: &State, pid: &str) -> Value {
+        let dep = self.deployments(state).remove(pid);
+        let script = match &dep {
+            Some(d) => {
+                let peers: Vec<(String, &str)> = PEERS
+                    .iter()
+                    .filter_map(|(n, ip)| Some((public_key_of(d.clients.get(*n)?)?, *ip)))
+                    .collect();
+                server_bootstrap("<hidden>", &peers)
+            }
+            None => server_bootstrap("<server private key>", &[("<this computer's public key>".into(), PEERS[0].1), ("<the Pi's public key>".into(), PEERS[1].1)]),
+        };
+        json!({
+            "server": dep.as_ref().map(|d| json!({ "region": d.region, "ip": d.ip, "resources": d.resources })),
+            "setup_script": script,
+            "client_config": self.client_config(state, pid, "desktop").ok().map(|c| geo_common::redact(&c)),
+            "delete": "Delete removes the whole resource group (VM, disk, network, public IP) with one API call: DELETE /subscriptions/<subscription>/resourceGroups/<group>",
+            "api_calls": self.azure.calls(),
+        })
     }
 
     pub fn destroy(&self, state: &State, pid: &str, log: &dyn Fn(&str)) -> Result<()> {

@@ -63,6 +63,8 @@ pub struct Azure {
     tokens: Mutex<HashMap<String, (String, Instant)>>,
     login: Arc<Mutex<Option<LoginView>>>,
     subs: Mutex<Option<(Instant, Vec<Subscription>)>>,
+    /// Recent API calls, for the Technical details panel.
+    calls: Mutex<std::collections::VecDeque<Value>>,
 }
 
 fn agent() -> ureq::Agent {
@@ -92,7 +94,12 @@ impl Default for Azure {
 
 impl Azure {
     pub fn new() -> Self {
-        Self { tokens: Mutex::new(HashMap::new()), login: Arc::new(Mutex::new(None)), subs: Mutex::new(None) }
+        Self {
+            tokens: Mutex::new(HashMap::new()),
+            login: Arc::new(Mutex::new(None)),
+            subs: Mutex::new(None),
+            calls: Mutex::new(Default::default()),
+        }
     }
 
     fn saved(state: &State) -> Option<Saved> {
@@ -205,7 +212,41 @@ impl Azure {
     }
 
     /// Call ARM. Returns (status, body).
+    /// The Azure API calls made so far (newest last), with secrets removed.
+    pub fn calls(&self) -> Vec<Value> {
+        self.calls.lock().unwrap().iter().cloned().collect()
+    }
+
+    fn record(&self, method: &str, url: &str, status: &str, body: &Option<Value>) {
+        let mut body = body.clone();
+        if let Some(os) = body.as_mut().and_then(|b| b.pointer_mut("/properties/osProfile")) {
+            for k in ["adminPassword", "customData"] {
+                if os.get(k).is_some() {
+                    os[k] = json!("<hidden>");
+                }
+            }
+        }
+        let mut c = self.calls.lock().unwrap();
+        c.push_back(json!({ "time": geo_common::clock(), "method": method, "url": url, "status": status, "body": body }));
+        if c.len() > 200 {
+            c.pop_front();
+        }
+    }
+
     fn arm(&self, state: &State, tenant: &str, method: &str, path: &str, body: Option<Value>) -> Result<(u16, Value)> {
+        let result = self.arm_inner(state, tenant, method, path, body.clone());
+        // Polling GETs are noisy: only record the ones that change something or fail.
+        if method != "GET" || result.is_err() {
+            let status = match &result {
+                Ok((code, _)) => code.to_string(),
+                Err(e) => format!("error: {e:#}"),
+            };
+            self.record(method, path, &status, &body);
+        }
+        result
+    }
+
+    fn arm_inner(&self, state: &State, tenant: &str, method: &str, path: &str, body: Option<Value>) -> Result<(u16, Value)> {
         let url = if path.starts_with("https://") { path.to_string() } else { format!("{ARM}{path}") };
         let req = agent()
             .request(method, &url)

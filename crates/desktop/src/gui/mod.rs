@@ -77,6 +77,7 @@ pub enum Overlay {
     AddProfile,
     Pi,
     Updates,
+    Advanced,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -155,6 +156,9 @@ pub struct App {
     restart_requested: bool,
     /// What was copied last and when (for the "Copied" confirmation).
     pub copied: Option<(String, Instant)>,
+    /// Technical details (GET /advanced), refreshed while the panel is open.
+    pub advanced: Value,
+    ticks: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -193,6 +197,8 @@ pub enum Message {
     CloudToPi,
     OpenPi,
     OpenUpdates,
+    OpenAdvanced,
+    Advanced(Result<Value, String>),
     PiUrl(String),
     PiPass(String),
     PiSave,
@@ -281,6 +287,8 @@ impl App {
             samples: VecDeque::new(),
             restart_requested: false,
             copied: None,
+            advanced: Value::Null,
+            ticks: 0,
         }
     }
 
@@ -496,6 +504,11 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
             app.fatal = Some(e);
         }
         Message::Tick => {
+            app.ticks += 1;
+            let mut tasks = Vec::new();
+            if matches!(app.overlay, Some(Overlay::Advanced)) && app.ticks.is_multiple_of(2) {
+                tasks.push(app.call("GET", "/advanced", Value::Null, Message::Advanced));
+            }
             if let Some((_, _, t)) = &app.flash {
                 if t.elapsed() > Duration::from_secs(6) {
                     app.flash = None;
@@ -503,8 +516,9 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
             }
             if !app.status_busy && app.backend.is_some() && app.waiting.is_none() {
                 app.status_busy = true;
-                return app.call("GET", "/status", Value::Null, Message::Status);
+                tasks.push(app.call("GET", "/status", Value::Null, Message::Status));
             }
+            return Task::batch(tasks);
         }
         Message::Status(r) => {
             app.status_busy = false;
@@ -707,6 +721,11 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
             return app.call("GET", "/pi", Value::Null, Message::PiInfo);
         }
         Message::OpenUpdates => app.overlay = Some(Overlay::Updates),
+        Message::OpenAdvanced => {
+            app.overlay = Some(Overlay::Advanced);
+            return app.call("GET", "/advanced", Value::Null, Message::Advanced);
+        }
+        Message::Advanced(r) => app.advanced = r.unwrap_or_else(|e| json!({ "error": e })),
         Message::PiUrl(v) => app.pi_url = v,
         Message::PiPass(v) => app.pi_pass = v,
         Message::PiSave => {
@@ -900,8 +919,13 @@ pub fn run() -> anyhow::Result<()> {
 /// Open the window with a canned backend (see examples/preview.rs).
 pub fn run_preview(backend: Backend) -> anyhow::Result<()> {
     launch(move || {
-        let app = App::new(Some(backend.clone()), None, None);
-        let t = app.refresh_lists();
+        let mut app = App::new(Some(backend.clone()), None, None);
+        let mut t = app.refresh_lists();
+        // GEO_PREVIEW_OPEN=details opens the Technical details panel (for screenshots).
+        if std::env::var("GEO_PREVIEW_OPEN").as_deref() == Ok("details") {
+            app.overlay = Some(Overlay::Advanced);
+            t = Task::batch([t, app.call("GET", "/advanced", Value::Null, Message::Advanced)]);
+        }
         (app, t)
     })
 }

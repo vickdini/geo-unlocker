@@ -125,6 +125,20 @@ mod tests {
     use ed25519_dalek::{Signer, SigningKey};
 
     #[test]
+    fn redacts_secrets() {
+        let conf = "[Interface]
+PrivateKey = abc123=
+Address = 10.0.0.2/32
+[Peer]
+PublicKey = pub=
+PresharedKey=psk
+";
+        let r = crate::redact(conf);
+        assert!(r.contains("PrivateKey = <hidden>") && r.contains("PresharedKey = <hidden>"));
+        assert!(r.contains("PublicKey = pub=") && !r.contains("abc123") && !r.contains("psk"));
+    }
+
+    #[test]
     fn versions() {
         assert!(is_newer("v0.3.0", "0.2.9"));
         assert!(is_newer("1.0", "0.9.9"));
