@@ -496,7 +496,8 @@ fn cloud_panel(app: &App) -> El<'_> {
             row![muted("Region").width(90), t(s(d, "region")).size(13)],
             row![muted("Address").width(90), t(s(d, "ip")).size(13)],
             row![muted("Running for").width(90), t(fmt_dur(age)).size(13)],
-            cost_estimate(c, d, age),
+            // Data comes from the live status (refreshed every second), not the tab's snapshot.
+            cost_estimate(c, app.status["cloud"]["azure"]["data_bytes"].as_u64().or(d["data_bytes"].as_u64()).unwrap_or(0), age),
             row![
                 button(row![svg(icons::power()).width(14).height(14), t(if active { "Connected" } else { "Connect" }).size(13)].spacing(6)).padding([7, 10]).style(style::btn(Btn::Primary)).on_press_maybe((!deleting && !active).then_some(Message::CloudConnect)),
                 button(row![svg(icons::send()).width(14).height(14), t("Use on the Pi").size(13)].spacing(6)).padding([7, 10]).style(style::btn(Btn::Ghost)).on_press_maybe((pi && !deleting).then_some(Message::CloudToPi)),
@@ -965,21 +966,20 @@ fn cost_table<'a>(k: &Value) -> El<'a> {
 }
 
 /// Estimated cost of the running server: server time + data that left Azure.
-fn cost_estimate<'a>(c: &Value, d: &Value, age_secs: u64) -> El<'a> {
+fn cost_estimate<'a>(c: &Value, bytes: u64, age_secs: u64) -> El<'a> {
     let k = &c["costs"];
     let f = |key: &str| k[key].as_f64().unwrap_or(0.0);
     let free = k["data_free_gb"].as_f64().unwrap_or(100.0);
-    let bytes = d["data_bytes"].as_u64().unwrap_or(0);
     let gb = bytes as f64 / 1e9;
     let (time_cost, data_cost) = estimate(age_secs, bytes, f("vm_per_hour") + f("ip_per_hour"), f("data_per_gb"), free);
     let line = |label: String, value: String| row![text(label).size(12).color(MUTED).width(Length::Fill), text(value).size(12)];
     container(
         column![
-            row![text("Estimated cost so far").size(13).font(SEMIBOLD).width(Length::Fill), text(format!("≈ US${:.2}", time_cost + data_cost)).size(14).font(BOLD)],
-            line(format!("Server time · {}", fmt_dur(age_secs)), format!("US${time_cost:.2}")),
+            row![text("Estimated cost so far").size(13).font(SEMIBOLD).width(Length::Fill), text(format!("≈ {}", usd(time_cost + data_cost))).size(14).font(BOLD)],
+            line(format!("Server time · {}", fmt_dur(age_secs)), usd(time_cost)),
             line(
-                format!("Data · {:.2} GB{}", gb, if gb <= free { format!(" (within the free {free:.0} GB)") } else { String::new() }),
-                format!("US${data_cost:.2}")
+                format!("Data · {}{}", fmt_bytes(bytes), if gb <= free { format!(" (within the free {free:.0} GB)") } else { String::new() }),
+                usd(data_cost)
             ),
             text("Estimate only, from list prices and the traffic Geo Unlocker measured (this computer and the Raspberry Pi). Your real bill is in the Azure portal under Cost Management.")
                 .size(11)
@@ -991,6 +991,15 @@ fn cost_estimate<'a>(c: &Value, d: &Value, age_secs: u64) -> El<'a> {
     .width(Length::Fill)
     .style(style::panel(style::BG, 9.0, Some(LINE)))
     .into()
+}
+
+/// US$ amount: three decimals below a dollar (small servers cost fractions of a cent per minute).
+fn usd(v: f64) -> String {
+    if v < 1.0 {
+        format!("US${v:.3}")
+    } else {
+        format!("US${v:.2}")
+    }
 }
 
 /// (server time cost, data cost) in US$ from list prices; the first `free_gb` of
