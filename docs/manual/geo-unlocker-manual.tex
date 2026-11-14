@@ -1,0 +1,479 @@
+% Geo Unlocker — User Manual
+% Build: pdflatex geo-unlocker-manual.tex (run twice for the table of contents)
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{fancyvrb}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{accent}{HTML}{6D4AFF}
+\definecolor{muted}{HTML}{5F6B7A}
+\definecolor{notebg}{HTML}{F3F1FF}
+
+\hypersetup{colorlinks=true, linkcolor=accent, urlcolor=accent, pdftitle={Geo Unlocker User Manual}}
+\titleformat{\section}{\Large\bfseries\color{accent}}{\thesection}{0.8em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{0.8em}{}
+\setlist{itemsep=2pt, topsep=4pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\renewcommand{\arraystretch}{1.25}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{muted}Geo Unlocker --- User Manual}
+\fancyhead[R]{\small\color{muted}Version 0.3}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\newcommand{\ui}[1]{\textbf{#1}}            % on-screen labels
+\newcommand{\file}[1]{\texttt{#1}}          % files, commands
+\newcommand{\usd}[1]{US\$#1}
+\newenvironment{note}{\par\smallskip\noindent\colorbox{notebg}\bgroup\begin{minipage}{\dimexpr\linewidth-2\fboxsep}}{\end{minipage}\egroup\par\smallskip}
+
+\begin{document}
+
+% ------------------------------------------------------------------ title page
+\begin{titlepage}
+  \centering
+  \vspace*{5cm}
+  {\Huge\bfseries\color{accent} Geo Unlocker\par}
+  \vspace{0.6cm}
+  {\LARGE User Manual\par}
+  \vspace{0.4cm}
+  {\large Desktop app and Raspberry Pi app\par}
+  \vfill
+  {\color{muted} Version 0.3 \quad\textbullet\quad \today\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ------------------------------------------------------------------ overview
+\section{Overview}
+
+Geo Unlocker makes your internet traffic appear to come from another country, on your computer and on devices that cannot run a VPN themselves, such as smart TVs, monitors and streaming sticks. It has two apps that work alone or together.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l L L L@{}}
+\toprule
+\textbf{App} & \textbf{Runs on} & \textbf{What it routes} & \textbf{Ways to connect} \\
+\midrule
+Desktop app & Windows 10/11, macOS 11+, Debian/Ubuntu Linux & All of that computer's traffic & Tor, WireGuard VPN, your own Azure cloud server \\
+Raspberry Pi app & Raspberry Pi with Raspberry Pi OS (64- or 32-bit) & All traffic of the devices you list & WireGuard and OpenVPN profiles \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Use the desktop app on its own for your computer. Add the Pi app when a TV or monitor needs a different country: the desktop app can send VPN profiles and your Azure server to the Pi with one click. Both apps update themselves from the project's GitHub releases.
+
+% ------------------------------------------------------------------ desktop: install
+\section{Desktop app: installing}
+
+Download the installer for your system from the latest release at \url{https://github.com/vickdini/geo-unlocker/releases}. Everything the app needs is included; nothing else has to be installed.
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{2.9cm} l L@{}}
+\toprule
+\textbf{System} & \textbf{File} & \textbf{How to install} \\
+\midrule
+Windows 10/11 (64-bit) & \file{GeoUnlockerSetup-<v>-x64.exe} & Run it. It adds a Start-menu entry and, optionally, a desktop icon. \\
+macOS 11+, Apple Silicon & \file{GeoUnlocker-<v>-macos-arm64.dmg} & Open it and drag Geo Unlocker to Applications. \\
+macOS 11+, Intel & \file{GeoUnlocker-<v>-macos-x64.dmg} & As above. \\
+Debian / Ubuntu (64-bit) & \file{geo-unlocker\_<v>\_amd64.deb} & \file{sudo apt install ./geo-unlocker\_<v>\_amd64.deb}; also installs Tor and other dependencies. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{First launch}
+
+\begin{itemize}
+  \item \textbf{Windows} shows ``Windows protected your PC'' the first time, because the installer is not code-signed yet. Click \ui{More info}, then \ui{Run anyway}.
+  \item \textbf{macOS} may say the app is from an unidentified developer. Right-click Geo Unlocker in Applications, choose \ui{Open}, then \ui{Open} again. This is needed only once.
+  \item \textbf{Administrator rights.} Geo Unlocker changes network settings, so it asks for them every time it starts (the UAC prompt on Windows, your password on macOS and Linux). On macOS and Linux only a small background service runs as administrator; the window runs as you.
+\end{itemize}
+
+The window opens maximized. Closing it disconnects and restores your normal connection.
+
+% ------------------------------------------------------------------ desktop: window
+\section{Desktop app: the window}
+
+The window has a top bar, a sidebar on the left and a world map on the right.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.2cm} L L@{}}
+\toprule
+\textbf{Area} & \textbf{What it shows} & \textbf{What you can do} \\
+\midrule
+Top bar & Version chip, Raspberry Pi chip, \ui{Details}, power icon & Open About \& updates, the Pi panel or Technical details; quit. \\
+Connection card & Where you are connected, your public IP and city, protocol, live speeds & \ui{Quick connect} reconnects to your last choice; \ui{Disconnect} (or \ui{Cancel} while connecting) restores your normal connection. \\
+Tabs: Tor, VPN, Cloud & The list for each way of connecting & Pick a country, profile or server; the power button on a row connects. \\
+Search box & Filters the list in the current tab & Type a country, profile or region. \\
+Map & You (purple), your exit (green), available countries (grey triangles) & Click a triangle to connect (Tor) or create a server (Cloud); scroll or use $+$/$-$ to zoom; drag to move. \\
+Status badge & UNPROTECTED, CONNECTING\ldots{} or CONNECTED, with details & --- \\
+Session traffic & Session time, data down/up, speeds, 60-second chart & --- \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The colour of the connection card shows the state at a glance: red means unprotected, amber means connecting and purple means connected. While connecting, the badge explains what it is waiting for. Steps of longer tasks appear in a pop-up at the bottom left of the map; errors stay there until you dismiss them.
+
+% ------------------------------------------------------------------ desktop: tor
+\section{Desktop app: Tor}
+
+Tor is free and needs no account. It is slow and many streaming services block it, so use it for browsing rather than video.
+
+\begin{enumerate}
+  \item Open the \ui{Tor} tab.
+  \item Choose what goes through Tor:
+    \begin{itemize}
+      \item \ui{Whole computer} (default): every app, including DNS look-ups. Only web-style (TCP) traffic works, so some games and calls stop while connected.
+      \item \ui{Proxy apps only}: only apps that follow the system proxy, such as most browsers.
+    \end{itemize}
+  \item Click the power button next to \ui{Fastest country} or next to a country. Each row shows the number of exit relays and their approximate total speed.
+  \item Wait for the badge to show \ui{CONNECTED}. The connection card then shows the exit IP and city.
+\end{enumerate}
+
+To change country, click another country's power button. To stop, click \ui{Disconnect}.
+
+\begin{itemize}
+  \item Countries with few exit relays connect slowly or not at all; try \ui{Fastest country} instead.
+  \item In proxy mode the system proxy is \file{127.0.0.1:9155}.
+  \item For real anonymity use Tor Browser; Geo Unlocker is for changing your apparent location.
+\end{itemize}
+
+% ------------------------------------------------------------------ desktop: vpn
+\section{Desktop app: VPN profiles}
+
+Use a VPN provider you already pay for (Proton VPN, Mullvad and others) by importing its WireGuard profile. WireGuard runs inside Geo Unlocker, so nothing else is installed.
+
+\subsection{Adding a profile}
+
+\begin{enumerate}
+  \item Download a WireGuard configuration file (\file{.conf}) from your provider, choosing the country you want.
+  \item In the \ui{VPN} tab, click \ui{Add}.
+  \item Click \ui{Choose file\ldots} and pick the file. The name is filled in from the file name.
+  \item Click \ui{Save}.
+\end{enumerate}
+
+OpenVPN files (\file{.ovpn}) can be added the same way, with a username and password if your provider needs them. They are marked \ui{PI ONLY}: the desktop app connects with WireGuard, but it can send OpenVPN profiles to the Raspberry Pi.
+
+\subsection{Connecting and other actions}
+
+Click the power button next to a WireGuard profile. All of the computer's traffic and DNS go through the VPN, even if the profile was written to route only part of it.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l L@{}}
+\toprule
+\textbf{Button} & \textbf{What it does} \\
+\midrule
+Send (paper plane) & Copies the profile to the Raspberry Pi (shown once the Pi is linked). \\
+Bin & Deletes the profile from this computer. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Only profiles with a single server are supported, which is what providers hand out.
+
+% ------------------------------------------------------------------ desktop: cloud
+\section{Desktop app: your own cloud server (Azure)}
+
+Geo Unlocker can create a private VPN server in Microsoft Azure in the country you choose, connect to it and delete it when you are done. You need a Microsoft account with an Azure subscription. You pay Azure directly, only while the server exists (Section~\ref{sec:costs}).
+
+\subsection{Signing in (once)}
+
+\begin{enumerate}
+  \item Open the \ui{Cloud} tab and click \ui{Sign in}.
+  \item The tab shows a link and a code. Open \url{https://microsoft.com/devicelogin}, click \ui{Copy} next to the code and paste it there.
+  \item Sign in with your Microsoft account and approve the request.
+  \item The tab updates by itself. If you have several subscriptions, pick one in the \ui{Subscription} list.
+\end{enumerate}
+
+\ui{Sign out} forgets the sign-in on this computer; it is available when no server exists.
+
+\subsection{Creating a server}
+
+\begin{enumerate}
+  \item Click the power button next to a country, or its triangle on the map.
+  \item Confirm in the \ui{Create a server?} dialog, which shows the price.
+  \item A \ui{Creating your server\ldots} card shows each step. It takes 2 to 4 minutes; then this computer connects automatically.
+  \item A new server needs about 2 more minutes to install WireGuard. Meanwhile the card shows \ui{CONNECTING\ldots}; then it shows \ui{CONNECTED}.
+\end{enumerate}
+
+One server exists at a time. To change country, delete it and create another.
+
+\subsection{The server card}
+
+The card shows the country, Azure region, the server's address, how long it has been running and an estimated cost so far.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l L@{}}
+\toprule
+\textbf{Button} & \textbf{What it does} \\
+\midrule
+Connect & Connects this computer to the server (reads \ui{Connected} when in use). \\
+Use on the Pi & Sends the server to the Raspberry Pi and connects the listed devices; the computer and the Pi can use it at the same time. \\
+Delete & Deletes the server and everything Azure created for it. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Deleting a server}
+
+\begin{enumerate}
+  \item Click \ui{Delete} and confirm.
+  \item The card shows \ui{Deleting your server\ldots} with the current step; its buttons are disabled. It takes a few minutes.
+  \item When Azure finishes, the card is replaced by a confirmation that the server was deleted and charges stopped, or by the error if something failed.
+\end{enumerate}
+
+If the Pi was using the server, switch the Pi to another profile afterwards.
+
+% ------------------------------------------------------------------ desktop: costs
+\section{Desktop app: costs}\label{sec:costs}
+
+A cloud server costs about \usd{0.015} per hour while it exists, plus data beyond 100\,GB a month. Tor and your own VPN profiles cost nothing extra. Azure bills your subscription directly; Geo Unlocker charges nothing.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}L l l@{}}
+\toprule
+\textbf{Cost} & \textbf{Price} & \textbf{Charged} \\
+\midrule
+Virtual machine (B1s) & \usd{0.010} / hour & while the server exists \\
+Public IP address & \usd{0.005} / hour & while the server exists \\
+\midrule
+\textbf{Total} & \textbf{$\approx$ \usd{0.015} / hour} & \\
+\midrule
+Data downloaded & \usd{0.087} / GB & after the first 100\,GB each month \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Prices are Azure's pay-as-you-go list prices for US East; other regions differ slightly. HD video uses about 3\,GB per hour.
+
+\subsection{The cost estimate}
+
+The server card shows \ui{Estimated cost so far}: server time since the server was created, plus data. The app measures the WireGuard traffic of this computer and of the Raspberry Pi when it uses the same server, subtracts the free 100\,GB and prices the rest.
+
+\begin{note}
+This is an estimate only. Your real bill is in the Azure portal under \ui{Cost Management}.
+\end{note}
+
+\subsection{Keeping costs low}
+
+\begin{itemize}
+  \item Delete the server when you stop using it; recreating one takes 3 to 4 minutes. Twenty hours of use a month cost about \usd{0.30} plus data.
+  \item A public IP address is required: it is the address websites see and how your devices reach the server.
+  \item Streaming services block many data-centre addresses, including Azure's, so a cloud server may not unlock every service.
+\end{itemize}
+
+% ------------------------------------------------------------------ desktop: pi, details, updates
+\section{Desktop app: Raspberry Pi, details and updates}
+
+\subsection{Linking the Raspberry Pi}
+
+\begin{enumerate}
+  \item Click \ui{Raspberry Pi} in the top bar.
+  \item Enter the Pi's address (for example \file{192.168.1.10}) and the Pi password chosen when installing it.
+  \item Click \ui{Save \& test}. The panel shows whether the Pi answers, which profile it uses and its devices.
+\end{enumerate}
+
+Once linked, VPN profiles get a send button, the cloud server card gets \ui{Use on the Pi}, and the dot on the Raspberry Pi chip turns green.
+
+\subsection{Technical details (advanced)}
+
+\ui{Details} in the top bar opens a panel that refreshes every 2 seconds. Each section has a \ui{Copy} button. Private keys and the server's admin password are shown as \file{<hidden>}, so copied text is safe to share.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{4.2cm} L@{}}
+\toprule
+\textbf{Section} & \textbf{Contents} \\
+\midrule
+Connection & Mode, tunnel state, last WireGuard handshake, data received and sent, route and DNS changes in effect. \\
+WireGuard configuration & The profile used by the current VPN or cloud connection. \\
+Cloud server setup script & The shell script Azure runs on the server at first boot. \\
+Azure API calls & Every request that created or deleted your server since the app started, with results. \\
+Tor output, App log & Recent lines from Tor and from Geo Unlocker. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Automatic updates}
+
+Geo Unlocker checks GitHub shortly after it starts and every 6 hours. A new version is downloaded in the background and installed only if its signature checks out. It installs when you are disconnected, so it never interrupts a connection: the window shows \ui{Updating Geo Unlocker}, closes and reopens a moment later.
+
+The version chip in the top bar opens \ui{About \& updates}: current and latest version, \ui{Check now}, \ui{Install now \& restart}, release notes and the \ui{Install updates automatically} switch.
+
+\subsection{Uninstalling}
+
+\begin{itemize}
+  \item \textbf{Windows:} Settings, Apps, Geo Unlocker, Uninstall. It first undoes any network changes left behind, then removes the app and its data.
+  \item \textbf{macOS:} quit the app and drag it from Applications to the Bin.
+  \item \textbf{Linux:} \file{sudo apt remove geo-unlocker}.
+\end{itemize}
+
+Delete your cloud server before uninstalling, or delete its resource group in the Azure portal, so it stops costing money.
+
+% ------------------------------------------------------------------ pi
+\section{Raspberry Pi app}
+
+The Pi app sends all traffic of the devices you list through a VPN, while every other device and the Pi itself keep your normal connection. It runs next to Pi-hole without interfering.
+
+\subsection{Requirements}
+
+\begin{itemize}
+  \item A Raspberry Pi 3, 4 or 5 with Raspberry Pi OS (64-bit uses the \file{arm64} bundle, 32-bit the \file{armhf} one). A wired Ethernet connection is recommended for streaming.
+  \item A VPN profile: a WireGuard \file{.conf} or OpenVPN \file{.ovpn} from a provider, or your Azure server sent from the desktop app.
+  \item Devices that can be set to a manual IP address.
+\end{itemize}
+
+\subsection{Installing}
+
+\begin{enumerate}
+  \item Download \file{geo-unlocker-pi-arm64.tar.gz} (or \file{-armhf}) from the latest release and copy it to the Pi.
+  \item On the Pi, unpack it and run the installer, listing your devices and choosing a password for the web page:
+\end{enumerate}
+
+\begin{Verbatim}[frame=single, fontsize=\small]
+tar xzf geo-unlocker-pi-arm64.tar.gz && cd geo-unlocker-pi-arm64
+sudo ./install.sh --device 192.168.1.50=TV \
+                  --device 192.168.1.51=Monitor --password 'choose-one'
+\end{Verbatim}
+
+The installer adds WireGuard, OpenVPN and the firewall tools, starts the service, and prints the web page address and the settings for your devices.
+
+\subsection{Setting up each device}
+
+On each listed device, open the network settings and switch to a manual (static) IP address:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l L@{}}
+\toprule
+\textbf{Setting} & \textbf{Value} \\
+\midrule
+IP address & The device's IP from your list, for example 192.168.1.50 \\
+Gateway / router & The Pi's IP address \\
+DNS & The Pi's IP address \\
+IPv6 & Off \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+On a Samsung Smart Monitor this is under Settings, General, Network, Network Status, IP Settings. IPv6 must be off, otherwise IPv6 traffic bypasses the Pi.
+
+\subsection{Using the web page}
+
+Open \file{http://<pi-ip>:8088} on any device and log in with the password.
+
+\begin{itemize}
+  \item \ui{Devices}: add or remove the devices routed through the VPN. Changes apply immediately.
+  \item \ui{VPN profiles}: upload a \file{.conf} or \file{.ovpn}, or receive them from the desktop app. Click \ui{Connect} on a profile; \ui{Turn off} returns the devices to your normal connection.
+  \item The status at the top shows the active profile, connection state and traffic.
+  \item \ui{Updates}: current version, \ui{Check now} and the automatic-updates switch.
+\end{itemize}
+
+If the VPN connection drops, the listed devices are blocked rather than falling back to your normal connection. While connected they skip Pi-hole's ad blocking, because their DNS goes through the VPN so that streaming services see the VPN's country.
+
+\subsection{Updates, settings and commands}
+
+The Pi app checks GitHub a minute after it starts and every 12 hours, installs signed updates and restarts itself; the active profile reconnects within seconds.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l L@{}}
+\toprule
+\textbf{Item} & \textbf{Where} \\
+\midrule
+Settings & \file{/etc/geo-unlocker/config.json} (devices, password, port, \file{auto\_update}) \\
+Profiles and state & \file{/var/lib/geo-unlocker} (root only) \\
+Live log & \file{journalctl -u geo-unlocker -f} \\
+Restart & \file{sudo systemctl restart geo-unlocker} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+% ------------------------------------------------------------------ troubleshooting
+\section{Troubleshooting and FAQ}
+
+Most problems show up in the log; start there.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l L@{}}
+\toprule
+\textbf{Log} & \textbf{Location} \\
+\midrule
+Desktop, Windows & \file{C:\textbackslash ProgramData\textbackslash GeoUnlocker\textbackslash geo-unlocker.log} \\
+Desktop, macOS & \file{/Library/Application Support/GeoUnlocker/geo-unlocker.log} \\
+Desktop, Linux & \file{/var/lib/geo-unlocker-desktop/geo-unlocker.log} \\
+Raspberry Pi & \file{journalctl -u geo-unlocker -f} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The desktop app's \ui{Details} panel shows the last 150 log lines with a \ui{Copy} button.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{5cm} L@{}}
+\toprule
+\textbf{Problem} & \textbf{What to do} \\
+\midrule
+A new cloud server stays on CONNECTING\ldots & Normal for about 2 minutes after creation. Still waiting after 5 minutes: delete it and create it again, or try another country. \\
+Websites still show my normal IP & Check that the badge says CONNECTED. If a tunnel drops, the app reconnects within seconds; the log says ``connection lost: reconnecting''. \\
+The window opens and closes at once & It was installing an update; it reopens by itself. \\
+``Geo Unlocker is already running'' & Another copy is open; check the taskbar or quit it with the power icon. \\
+A Tor country never connects & It has too few exit relays; choose \ui{Fastest country}. \\
+A streaming service still blocks me & It recognises VPN or data-centre addresses. Try another country or provider; no tool can guarantee access. \\
+The TV has no internet after setting up the Pi & Check that its gateway and DNS are the Pi's IP and IPv6 is off. A failing VPN blocks the devices on purpose: click \ui{Turn off} on the Pi page to test. \\
+``Windows protected your PC'' & Expected for unsigned installers: \ui{More info}, \ui{Run anyway}. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection*{Frequently asked questions}
+
+\textbf{Is my traffic private?} With a VPN profile your provider can see it; with your Azure server only your server handles it; with Tor no single relay sees both you and the website.
+
+\textbf{Can my computer and the Pi use the same cloud server?} Yes. The server has separate keys for each, so both can be connected at once.
+
+\textbf{Do I need to keep the window open?} Yes. Closing it disconnects and restores your normal connection.
+
+% ------------------------------------------------------------------ privacy
+\section{Privacy, security and limitations}
+
+Geo Unlocker keeps your data on your own devices and in your own Azure account; it has no servers or accounts of its own.
+
+\subsection{What it stores and sends}
+
+\begin{itemize}
+  \item \textbf{On your computer and Pi:} VPN profiles, the Azure sign-in token, cloud server keys and settings, in folders only administrators can read.
+  \item \textbf{To Microsoft:} sign-in and the requests that create and delete your server, from your own account.
+  \item \textbf{To ipinfo.io:} a request to show your public IP and location on the map (through the tunnel when connected).
+  \item \textbf{To GitHub:} update checks. Updates install only if their signature matches the key built into the app.
+  \item \textbf{To the Tor Project:} the list of exit countries.
+\end{itemize}
+
+\subsection{Limitations}
+
+\begin{itemize}
+  \item Streaming services block many VPN, Tor and data-centre addresses, so access to a given service is never guaranteed, and using a VPN may break a service's terms.
+  \item Tunnels carry IPv4 traffic; IPv6 is blocked while connected so nothing bypasses them.
+  \item Tor carries web-style (TCP) traffic only.
+  \item The desktop app has no kill switch yet: if a tunnel stops, traffic uses your normal connection for the few seconds until it reconnects. The Pi app blocks devices instead.
+  \item One cloud server at a time, in Azure only. Desktop VPN profiles must be WireGuard with a single server.
+  \item The installers are not code-signed yet, so Windows and macOS warn on first launch.
+\end{itemize}
+
+\subsection{Third-party components}
+
+Tor (The Tor Project), Wintun (WireGuard LLC), boringtun (Cloudflare), tun2proxy, iced, rfd, flag-icons, and map data from Natural Earth. Licences are in the \file{licenses} folder of the Windows installation and in the source repository.
+
+\end{document}
