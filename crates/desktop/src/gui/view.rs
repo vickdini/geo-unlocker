@@ -450,6 +450,27 @@ fn cloud_panel(app: &App) -> El<'_> {
         return col.push(container(card).padding(14).style(style::panel(CARD, 12.0, Some(LINE)))).into();
     }
     col = col.push(muted(format!("Signed in as {}", s(c, "account"))));
+    // Progress of a server being created or deleted, and the result of the last one.
+    let job = &app.status["job"];
+    let job_running = job["running"].as_bool() == Some(true);
+    let job_title = s(job, "title");
+    let job_step = job["lines"].as_array().and_then(|l| l.last()).and_then(Value::as_str).unwrap_or("").to_string();
+    let deleting = job_running && job_title.starts_with("Deleting your server");
+    let creating = job_running && job_title.starts_with("Creating your server");
+    if let Some((msg, err)) = &app.cloud_notice {
+        if !creating && !deleting {
+            col = col.push(note(text(msg.clone()).size(13).color(if *err { BAD } else { OK }).into(), *err));
+        }
+    }
+    if creating {
+        let progress = column![
+            text("Creating your server…").size(15).font(BOLD),
+            text(job_step).size(12).color(MUTED),
+            muted("This takes 2–4 minutes. The server card appears here when it's ready, and this computer connects to it."),
+        ]
+        .spacing(6);
+        return col.push(container(progress).padding(14).style(style::panel(CARD, 12.0, Some(alpha(WARN, 0.5))))).into();
+    }
     let m = &app.status["mode"];
     if !c["deployment"].is_null() {
         let d = &c["deployment"];
@@ -459,7 +480,11 @@ fn cloud_panel(app: &App) -> El<'_> {
         let age = geo_common::now().saturating_sub(created);
         let pi = app.status["pi"]["url"].is_string();
         let card = column![
-            row![flag(&cc, 30.0), column![text(country_name(&cc)).size(15).font(BOLD), muted("Your Azure server")].width(Length::Fill), if active { connected_pill() } else { Space::new().into() }]
+            row![
+                flag(&cc, 30.0),
+                column![text(country_name(&cc)).size(15).font(BOLD), muted(if deleting { "Deleting your server…" } else { "Your Azure server" })].width(Length::Fill),
+                if active { connected_pill() } else { Space::new().into() }
+            ]
                 .spacing(10)
                 .align_y(Alignment::Center),
             row![muted("Region").width(90), t(s(d, "region")).size(13)],
@@ -467,14 +492,20 @@ fn cloud_panel(app: &App) -> El<'_> {
             row![muted("Running for").width(90), t(fmt_dur(age)).size(13)],
             cost_estimate(c, d, age),
             row![
-                button(row![svg(icons::power()).width(14).height(14), t("Connect").size(13)].spacing(6)).padding([7, 10]).style(style::btn(Btn::Primary)).on_press(Message::CloudConnect),
-                button(row![svg(icons::send()).width(14).height(14), t("Use on the Pi").size(13)].spacing(6)).padding([7, 10]).style(style::btn(Btn::Ghost)).on_press_maybe(pi.then_some(Message::CloudToPi)),
-                button(row![svg(icons::trash()).width(14).height(14), t("Delete").size(13)].spacing(6)).padding([7, 10]).style(style::btn(Btn::Danger)).on_press(Message::Ask(Pending::Destroy)),
+                button(row![svg(icons::power()).width(14).height(14), t("Connect").size(13)].spacing(6)).padding([7, 10]).style(style::btn(Btn::Primary)).on_press_maybe((!deleting).then_some(Message::CloudConnect)),
+                button(row![svg(icons::send()).width(14).height(14), t("Use on the Pi").size(13)].spacing(6)).padding([7, 10]).style(style::btn(Btn::Ghost)).on_press_maybe((pi && !deleting).then_some(Message::CloudToPi)),
+                button(row![svg(icons::trash()).width(14).height(14), t("Delete").size(13)].spacing(6)).padding([7, 10]).style(style::btn(Btn::Danger)).on_press_maybe((!deleting && !job_running).then_some(Message::Ask(Pending::Destroy))),
             ]
             .spacing(6),
         ]
         .spacing(8);
-        col = col.push(container(card).padding(14).style(style::panel(CARD, 12.0, Some(LINE))));
+        let card = if deleting {
+            card.push(text(job_step.clone()).size(12).color(WARN))
+                .push(muted("Deleting takes a few minutes. Charges stop when it's done; this card will tell you."))
+        } else {
+            card
+        };
+        col = col.push(container(card).padding(14).style(style::panel(CARD, 12.0, Some(if deleting { alpha(WARN, 0.5) } else { LINE }))));
         col = col.push(note(muted("It costs money while it exists. Delete it when you're done.").into(), false));
     } else {
         let subs: Vec<String> = c["options"]["subscriptions"].as_array().into_iter().flatten().map(|x| s(x, "name")).collect();

@@ -156,6 +156,8 @@ pub struct App {
     restart_requested: bool,
     /// Whether a background job was running at the last status update.
     job_was_running: bool,
+    /// Result of the last server create/delete, shown in the Cloud tab: (message, is_error).
+    pub cloud_notice: Option<(String, bool)>,
     /// What was copied last and when (for the "Copied" confirmation).
     pub copied: Option<(String, Instant)>,
     /// Technical details (GET /advanced), refreshed while the panel is open.
@@ -289,6 +291,7 @@ impl App {
             samples: VecDeque::new(),
             restart_requested: false,
             job_was_running: false,
+            cloud_notice: None,
             copied: None,
             advanced: Value::Null,
             ticks: 0,
@@ -427,6 +430,18 @@ impl App {
         // Cloud tab doesn't keep showing a server that was just deleted.
         let job_running = self.status["job"]["running"].as_bool() == Some(true);
         if self.job_was_running && !job_running {
+            let job = &self.status["job"];
+            let title = s(job, "title");
+            let country = icons::country_name(&s(&self.cloud["deployment"], "country"));
+            let error = job["error"].as_str().map(String::from);
+            if title.starts_with("Deleting your server") {
+                self.cloud_notice = Some(match error {
+                    None => (format!("✔ Your server in {country} was deleted. You're no longer being charged for it."), false),
+                    Some(e) => (format!("Deleting the server failed: {e}"), true),
+                });
+            } else if title.starts_with("Creating your server") {
+                self.cloud_notice = error.map(|e| (format!("Creating the server failed: {e}"), true));
+            }
             tasks.push(self.refresh_lists());
         }
         self.job_was_running = job_running;
@@ -665,8 +680,14 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
             let Some(Overlay::Confirm { action, .. }) = app.overlay.take() else { return Task::none() };
             return match action {
                 Pending::DeleteProfile(n) => app.call("DELETE", format!("/vpn/profiles/{}", encode(&n)), Value::Null, Message::Done),
-                Pending::Deploy(cc) => app.call("POST", "/cloud/azure/deploy", json!({ "country": cc, "subscription": app.cloud_sub }), Message::Done),
-                Pending::Destroy => app.call("POST", "/cloud/azure/destroy", json!({}), Message::Done),
+                Pending::Deploy(cc) => {
+                    app.cloud_notice = None;
+                    app.call("POST", "/cloud/azure/deploy", json!({ "country": cc, "subscription": app.cloud_sub }), Message::Done)
+                }
+                Pending::Destroy => {
+                    app.cloud_notice = None;
+                    app.call("POST", "/cloud/azure/destroy", json!({}), Message::Done)
+                }
                 Pending::InstallUpdate => app.call("POST", "/update/install", json!({}), Message::Done),
                 Pending::Quit => app.shutdown_then_exit(),
             };
