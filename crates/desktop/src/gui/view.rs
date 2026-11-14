@@ -443,6 +443,15 @@ fn cloud_panel(app: &App) -> El<'_> {
             row![muted("Address").width(90), t(s(d, "ip")).size(13)],
             row![muted("Running for").width(90), t(fmt_dur(age)).size(13)],
             row![
+                muted("Cost so far").width(90),
+                t(format!(
+                    "≈ US${:.2} (≈ US${:.3}/hour, plus data)",
+                    age as f64 / 3600.0 * c["usd_per_hour"].as_f64().unwrap_or(0.0),
+                    c["usd_per_hour"].as_f64().unwrap_or(0.0)
+                ))
+                .size(13)
+            ],
+            row![
                 button(row![svg(icons::power()).width(14).height(14), t("Connect").size(13)].spacing(6)).padding([7, 10]).style(style::btn(Btn::Primary)).on_press(Message::CloudConnect),
                 button(row![svg(icons::send()).width(14).height(14), t("Use on the Pi").size(13)].spacing(6)).padding([7, 10]).style(style::btn(Btn::Ghost)).on_press_maybe(pi.then_some(Message::CloudToPi)),
                 button(row![svg(icons::trash()).width(14).height(14), t("Delete").size(13)].spacing(6)).padding([7, 10]).style(style::btn(Btn::Danger)).on_press(Message::Ask(Pending::Destroy)),
@@ -483,7 +492,7 @@ fn cloud_panel(app: &App) -> El<'_> {
             col = col.push(list_row(flag(&cc, 22.0), name, region, false, vec![connect_btn(Message::Ask(Pending::Deploy(cc.clone())), false)]));
         }
     }
-    col.push(note(muted(format!("💲 {} Big streaming services often block cloud IP addresses.", s(c, "cost_note"))).into(), false)).into()
+    col.push(note(muted(format!("💲 {} Note: big streaming services block many cloud (data-centre) addresses, so a server may not unlock every service.", s(c, "cost_note"))).into(), false)).into()
 }
 
 // ---------------------------------------------------------------- map stage

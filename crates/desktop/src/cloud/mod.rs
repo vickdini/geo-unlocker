@@ -5,7 +5,7 @@ pub mod azure;
 pub mod base;
 
 use anyhow::{bail, Context, Result};
-use azure::{Azure, COST_NOTE, REGIONS};
+use azure::{Azure, COST_NOTE, IP_USD_PER_HOUR, REGIONS, VM_USD_PER_HOUR};
 use base::{client_conf, server_bootstrap, wg_keypair, PEERS};
 use geo_common::state::State;
 use serde::{Deserialize, Serialize};
@@ -63,6 +63,7 @@ impl CloudManager {
         let regions: BTreeMap<_, _> = REGIONS.iter().copied().collect();
         Ok(json!({
             "id": PROVIDER, "name": "Azure", "installed": true, "cost_note": COST_NOTE,
+            "usd_per_hour": VM_USD_PER_HOUR + IP_USD_PER_HOUR,
             "regions": regions, "account": account, "options": options,
             "deployment": self.deployments(state).get(pid).map(Deployment::public),
             "login": self.azure.login_view(),

@@ -122,9 +122,11 @@ Behaviour:
   `/Library/Application Support/GeoUnlocker` (macOS), `/var/lib/geo-unlocker-desktop` (Linux).
 * Third-party components and licenses: `crates/desktop/static/NOTICE.md`.
 
-Cloud costs: the B1s VM is free for 12 months on new Azure accounts, then ≈ US$8/month plus
-≈ US$3.60/month for the public IP; data out costs ≈ US$0.087/GB after 100 GB/month (HD video ≈
-3 GB/hour). Delete the server when you don't need it.
+Cloud costs: you pay only while the server exists, by usage: VM ≈ US$0.010/hour + public IP ≈
+US$0.005/hour (≈ US$0.015/hour together; new Azure accounts get 750 free B1s hours a month for 12
+months), plus data out ≈ US$0.087/GB after 100 GB/month (HD video ≈ 3 GB/hour). The server card
+shows the running cost; **Delete** stops all charges. Big streaming services block many data-centre
+addresses, so a cloud server won't unlock every service.
 
 ---
 

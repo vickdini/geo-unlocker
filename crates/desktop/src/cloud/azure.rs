@@ -27,8 +27,12 @@ pub const REGIONS: &[(&str, &str)] = &[
     ("za", "southafricanorth"), ("ae", "uaenorth"),
 ];
 
-pub const COST_NOTE: &str = "B1s VM: free for 12 months on new accounts, then ≈ US$8/mo + public IP ≈ US$3.60/mo. \
-                             Data out ≈ US$0.087/GB after 100 GB/mo free (HD video ≈ 3 GB/hour).";
+/// Approximate pay-as-you-go prices (US East; other regions differ a little).
+/// Both are charged only while the server exists.
+pub const VM_USD_PER_HOUR: f64 = 0.0104; // Standard_B1s, Linux
+pub const IP_USD_PER_HOUR: f64 = 0.005; // Standard static public IPv4
+
+pub const COST_NOTE: &str = "You pay only while the server exists: VM ≈ US$0.010/hour + public IP ≈ US$0.005/hour                              (≈ US$0.015/hour together; new Azure accounts get 750 free VM hours a month for 12 months).                              Data out ≈ US$0.087/GB after 100 GB/month free (HD video ≈ 3 GB/hour). Delete the server to stop all charges.";
 
 /// What we keep after sign-in (in the app's admin-only state file).
 #[derive(Serialize, Deserialize, Clone, Default)]
