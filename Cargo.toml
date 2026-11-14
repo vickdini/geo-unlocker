@@ -20,3 +20,12 @@ sha2 = "0.10"
 lto = true
 codegen-units = 1
 strip = true
+
+# Quick local test builds: optimized (WireGuard/crypto at full speed) but without
+# release LTO, so rebuilds take seconds. `cargo build --profile fast`, see scripts/dev.ps1.
+[profile.fast]
+inherits = "release"
+lto = false
+codegen-units = 16
+incremental = true
+strip = false
